@@ -1,7 +1,7 @@
 import type { PrintJob, PrinterStatus, PrinterType } from '@log-dot-print/core';
 import { BasePrinter, printerRegistry } from '@log-dot-print/printer-core';
 import { appendFile, mkdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { dirname } from 'path';
 
 interface MockPrinterOptions {
   /** Simulated print delay in milliseconds */

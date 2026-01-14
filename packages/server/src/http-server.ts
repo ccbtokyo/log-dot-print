@@ -1,6 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import type {
-  LogEntry,
   LogReceiverPlugin,
   SystemConfig,
   TypedEventEmitter,
@@ -117,7 +116,7 @@ export class HttpReceiver implements LogReceiverPlugin {
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, id: entry.id }));
-      } catch (error) {
+      } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON' }));
       }
@@ -155,7 +154,7 @@ export class HttpReceiver implements LogReceiverPlugin {
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ results }));
-      } catch (error) {
+      } catch {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid JSON' }));
       }

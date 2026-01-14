@@ -117,7 +117,7 @@ export class WebSocketReceiver implements LogReceiverPlugin {
           ws.send(JSON.stringify({ type: 'ack', id: entry.id }));
         }
       }
-    } catch (error) {
+    } catch {
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
     }
   }

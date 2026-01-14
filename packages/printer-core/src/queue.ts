@@ -1,7 +1,6 @@
 import type {
   PrintJob,
   PrinterPlugin,
-  SystemConfig,
   TypedEventEmitter,
 } from '@log-dot-print/core';
 

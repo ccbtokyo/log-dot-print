@@ -7,18 +7,24 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "clean": "npm run clean --workspaces --if-present",
-    "dev": "npm run dev --workspace=@log-dot-print/server",
-    "test": "npm run test --workspaces --if-present",
-    "lint": "eslint packages/*/src/**/*.ts"
+    "build": "bun run build:all",
+    "build:all": "bun run --filter '*' build",
+    "build:tsc": "tsc --build packages/*/tsconfig.json",
+    "build:tsgo": "tsgo --build packages/*/tsconfig.json",
+    "clean": "bun run --filter '*' clean",
+    "dev": "bun run --cwd packages/server dev",
+    "test": "bun run --filter '*' test",
+    "lint": "oxlint packages/*/src",
+    "lint:fix": "oxlint --fix packages/*/src",
+    "format": "oxlint --fix packages/*/src",
+    "check": "tsgo --noEmit packages/*/src/**/*.ts",
+    "typecheck": "tsgo --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "eslint": "^8.55.0",
-    "typescript": "^5.3.0",
-    "@typescript-eslint/eslint-plugin": "^6.13.0",
-    "@typescript-eslint/parser": "^6.13.0"
+    "@types/node": "^20.19.29",
+    "@typescript/native-preview": "^7.0.0-dev.20260114.1",
+    "oxlint": "^1.39.0",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0"
