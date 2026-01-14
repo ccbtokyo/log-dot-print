@@ -1,32 +1,19 @@
 {
   "name": "log-dot-print",
   "version": "1.0.0",
-  "description": "AI Log Printer System - Real-time printing of UE AI logs for art installations",
+  "description": "AI Log Printer System",
   "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
+  "workspaces": ["packages/*"],
   "scripts": {
-    "build": "bun run build:all",
-    "build:all": "bun run --filter '*' build",
-    "build:tsc": "tsc --build packages/*/tsconfig.json",
-    "build:tsgo": "tsgo --build packages/*/tsconfig.json",
-    "clean": "bun run --filter '*' clean",
-    "dev": "bun run --cwd packages/server dev",
-    "test": "bun run --filter '*' test",
+    "build": "tsgo --build",
+    "test": "bun test",
     "lint": "oxlint packages/*/src",
-    "lint:fix": "oxlint --fix packages/*/src",
-    "format": "oxlint --fix packages/*/src",
-    "check": "tsgo --noEmit packages/*/src/**/*.ts",
-    "typecheck": "tsgo --noEmit"
+    "format": "bunx oxfmt packages/*/src"
   },
   "devDependencies": {
-    "@types/node": "^20.19.29",
+    "@types/bun": "^1.3.6",
+    "@types/node": "^25.0.8",
     "@typescript/native-preview": "^7.0.0-dev.20260114.1",
-    "oxlint": "^1.39.0",
-    "typescript": "^5.9.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "oxlint": "^1.39.0"
   }
 }
