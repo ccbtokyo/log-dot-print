@@ -1,0 +1,24 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "printer": {
+    "type": "cups",
+    "options": {
+      "printerName": "HP_LaserJet",
+      "paperSize": "a4",
+      "copies": 1
+    }
+  },
+  "queue": {
+    "maxSize": 1000,
+    "retryAttempts": 3,
+    "retryDelayMs": 1000
+  },
+  "format": {
+    "maxLineWidth": 80,
+    "includeTimestamp": true,
+    "includeSource": true
+  }
+}

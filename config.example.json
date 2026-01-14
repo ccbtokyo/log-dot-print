@@ -1,0 +1,23 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "printer": {
+    "type": "mock",
+    "options": {
+      "logToConsole": true,
+      "logToFile": "./logs/printed.log"
+    }
+  },
+  "queue": {
+    "maxSize": 1000,
+    "retryAttempts": 3,
+    "retryDelayMs": 1000
+  },
+  "format": {
+    "maxLineWidth": 80,
+    "includeTimestamp": true,
+    "includeSource": true
+  }
+}

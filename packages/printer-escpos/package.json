@@ -1,0 +1,30 @@
+{
+  "name": "@log-dot-print/printer-escpos",
+  "version": "1.0.0",
+  "description": "ESC/POS thermal printer plugin",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@log-dot-print/core": "*",
+    "@log-dot-print/printer-core": "*",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-usb": "^3.0.0-alpha.4",
+    "escpos-network": "^3.0.0-alpha.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  },
+  "optionalDependencies": {
+    "escpos-serialport": "^3.0.0-alpha.4"
+  }
+}

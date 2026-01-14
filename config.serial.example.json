@@ -1,0 +1,29 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "printer": {
+    "type": "serial",
+    "options": {
+      "path": "/dev/ttyUSB0",
+      "baudRate": 9600,
+      "dataBits": 8,
+      "stopBits": 1,
+      "parity": "none",
+      "lineEnding": "crlf",
+      "lineDelayMs": 50,
+      "formFeed": true
+    }
+  },
+  "queue": {
+    "maxSize": 500,
+    "retryAttempts": 5,
+    "retryDelayMs": 2000
+  },
+  "format": {
+    "maxLineWidth": 40,
+    "includeTimestamp": true,
+    "includeSource": true
+  }
+}
