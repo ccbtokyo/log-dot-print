@@ -5,6 +5,11 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# TypeScript build artifacts (tsc emits into src/)
+packages/**/src/**/*.js
+packages/**/src/**/*.d.ts
+packages/**/src/**/*.map
+
 # IDE
 .vscode/
 .idea/
@@ -20,6 +25,12 @@ logs/
 # Environment
 .env
 .env.local
+
+# Local config
+config.json
+config.*.json
+!config.example.json
+!config.*.example.json
 
 # Test coverage
 coverage/

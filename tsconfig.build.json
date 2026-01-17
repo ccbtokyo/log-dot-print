@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/printer-core" },
+    { "path": "./packages/printer-cups" },
+    { "path": "./packages/printer-escpos" },
+    { "path": "./packages/printer-mock" },
+    { "path": "./packages/printer-serial" },
+    { "path": "./packages/server" }
+  ]
+}
