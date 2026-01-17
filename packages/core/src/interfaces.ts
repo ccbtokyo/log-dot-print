@@ -1,5 +1,5 @@
-import type { LogEntry, PrintJob, PrinterStatus, SystemConfig } from './types.js';
-import type { TypedEventEmitter } from './events.js';
+import type { LogEntry, PrintJob, PrinterStatus, SystemConfig } from "./types.js";
+import type { TypedEventEmitter } from "./events.js";
 
 /**
  * Plugin interface - base for all plugins

@@ -1,23 +1,24 @@
-import { createServer } from 'http';
+import { createServer } from "http";
+import { connect } from "net";
 import type {
   SystemConfig,
   PrinterPlugin,
   LogEntry,
   PrintJob,
+  LogSubmitResult,
   StoragePlugin,
-} from '@log-dot-print/core';
-import { TypedEventEmitter, createPrintJob } from '@log-dot-print/core';
-import {
-  PrintQueue,
-  DefaultFormatter,
-  printerRegistry,
-} from '@log-dot-print/printer-core';
-import { HttpReceiver } from './http-server.js';
-import { WebSocketReceiver } from './websocket-server.js';
-import { FileStorage } from './storage/file-storage.js';
+} from "@log-dot-print/core";
+import { TypedEventEmitter, createPrintJob } from "@log-dot-print/core";
+import { PrintQueue, DefaultFormatter, printerRegistry } from "@log-dot-print/printer-core";
+import { HttpReceiver } from "./http-server.js";
+import { WebSocketReceiver } from "./websocket-server.js";
+import { FileStorage } from "./storage/file-storage.js";
 
 // Import printer plugins to register them
-import '@log-dot-print/printer-mock';
+import "@log-dot-print/printer-cups";
+import "@log-dot-print/printer-escpos";
+import "@log-dot-print/printer-mock";
+import "@log-dot-print/printer-serial";
 
 /**
  * Extended configuration with storage
@@ -25,11 +26,15 @@ import '@log-dot-print/printer-mock';
 export interface AppConfig extends SystemConfig {
   storage?: {
     enabled: boolean;
-    type: 'file';
+    type: "file";
     path: string;
     flushIntervalMs?: number;
   };
 }
+
+export type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Record<string, unknown> ? DeepPartial<T[K]> : T[K];
+};
 
 /**
  * Default configuration
@@ -37,10 +42,10 @@ export interface AppConfig extends SystemConfig {
 export const defaultConfig: AppConfig = {
   server: {
     port: 3000,
-    host: '0.0.0.0',
+    host: "0.0.0.0",
   },
   printer: {
-    type: 'mock',
+    type: "mock",
     options: {
       logToConsole: true,
     },
@@ -57,8 +62,8 @@ export const defaultConfig: AppConfig = {
   },
   storage: {
     enabled: true,
-    type: 'file',
-    path: './logs/ai-logs.jsonl',
+    type: "file",
+    path: "./logs/ai-logs.jsonl",
     flushIntervalMs: 1000,
   },
 };
@@ -77,7 +82,7 @@ export class LogPrintApp {
   private storage: StoragePlugin | null = null;
   private httpServer: ReturnType<typeof createServer> | null = null;
 
-  constructor(config: Partial<AppConfig> = {}) {
+  constructor(config: DeepPartial<AppConfig> = {}) {
     this.config = this.mergeConfig(defaultConfig, config);
     this.eventBus = new TypedEventEmitter();
     this.httpReceiver = new HttpReceiver();
@@ -90,14 +95,13 @@ export class LogPrintApp {
    * Start the application
    */
   async start(): Promise<void> {
-    console.log('[App] Starting Log-Dot-Print...');
+    console.log("[App] Starting Log-Dot-Print...");
 
     // Initialize storage if enabled
     if (this.config.storage?.enabled) {
-      this.storage = new FileStorage(
-        this.config.storage.path,
-        { flushIntervalMs: this.config.storage.flushIntervalMs }
-      );
+      this.storage = new FileStorage(this.config.storage.path, {
+        flushIntervalMs: this.config.storage.flushIntervalMs,
+      });
       await this.storage.initialize();
       console.log(`[App] Storage enabled: ${this.config.storage.path}`);
     }
@@ -106,10 +110,7 @@ export class LogPrintApp {
     await this.formatter.initialize(this.eventBus, this.config);
 
     // Initialize printer
-    this.printer = printerRegistry.create(
-      this.config.printer.type,
-      this.config.printer.options
-    );
+    this.printer = printerRegistry.create(this.config.printer.type, this.config.printer.options);
     await this.printer.initialize(this.eventBus, this.config);
 
     // Initialize print queue
@@ -129,29 +130,27 @@ export class LogPrintApp {
       this.httpReceiver.handleRequest(req, res);
     });
 
-    // Attach WebSocket
+    // Start listening (auto-increment port if needed)
+    const actualPort = await this.listenWithPortFallback(this.httpServer, host, port);
+    this.config.server.port = actualPort;
+
+    // Attach WebSocket after HTTP server is listening
     this.wsReceiver.attachToServer(this.httpServer);
 
-    // Start listening
-    await new Promise<void>((resolve) => {
-      this.httpServer!.listen(port, host, () => {
-        console.log(`[App] Server running on http://${host}:${port}`);
-        console.log(`[App] WebSocket available at ws://${host}:${port}/ws`);
-        resolve();
-      });
-    });
+    console.log(`[App] Server running on http://${host}:${actualPort}`);
+    console.log(`[App] WebSocket available at ws://${host}:${actualPort}/ws`);
 
-    this.eventBus.emit('system:ready');
-    console.log('[App] System ready');
+    this.eventBus.emit("system:ready");
+    console.log("[App] System ready");
   }
 
   /**
    * Stop the application
    */
   async stop(): Promise<void> {
-    console.log('[App] Shutting down...');
+    console.log("[App] Shutting down...");
 
-    this.eventBus.emit('system:shutdown');
+    this.eventBus.emit("system:shutdown");
 
     // Stop receivers
     await this.wsReceiver.shutdown();
@@ -179,7 +178,7 @@ export class LogPrintApp {
       }
     });
 
-    console.log('[App] Shutdown complete');
+    console.log("[App] Shutdown complete");
   }
 
   /**
@@ -209,60 +208,215 @@ export class LogPrintApp {
 
   private setupEventHandlers(): void {
     // Log received -> save, format and queue
-    this.eventBus.on('log:received', async (entry: LogEntry) => {
-      // Save to storage
-      if (this.storage) {
-        try {
-          await this.storage.save(entry);
-        } catch (error) {
-          console.error('[App] Failed to save log:', error);
-        }
-      }
-
-      // Format and print
-      const formattedContent = this.formatter.format(entry);
-      const job = createPrintJob(entry, formattedContent);
-      this.eventBus.emit('log:formatted', job);
-      this.printQueue.enqueue(job);
-    });
+    this.eventBus.on(
+      "log:received",
+      (entry: LogEntry, respond?: (result: LogSubmitResult) => void) => {
+        void this.handleLogReceived(entry)
+          .then((result) => {
+            respond?.(result);
+          })
+          .catch((error) => {
+            const err = error instanceof Error ? error : new Error(String(error));
+            console.error("[App] Failed to process log:", err);
+            respond?.({
+              accepted: false,
+              id: entry.id,
+              code: "internal_error",
+              message: err.message,
+              queueSize: this.printQueue.size,
+            });
+          });
+      },
+    );
 
     // Print events logging
-    this.eventBus.on('print:started', (job: PrintJob) => {
+    this.eventBus.on("print:started", (job: PrintJob) => {
       console.log(`[App] Printing job ${job.id}`);
     });
 
-    this.eventBus.on('print:completed', (job: PrintJob) => {
+    this.eventBus.on("print:completed", (job: PrintJob) => {
       console.log(`[App] Completed job ${job.id}`);
     });
 
-    this.eventBus.on('print:failed', (job: PrintJob, error: Error) => {
+    this.eventBus.on("print:failed", (job: PrintJob, error: Error) => {
       console.error(`[App] Failed job ${job.id}:`, error.message);
     });
 
-    this.eventBus.on('print:retry', (job: PrintJob, attempt: number) => {
+    this.eventBus.on("print:retry", (job: PrintJob, attempt: number) => {
       console.log(`[App] Retrying job ${job.id} (attempt ${attempt})`);
     });
 
     // Error handling
-    this.eventBus.on('system:error', (error: Error) => {
-      console.error('[App] System error:', error);
+    this.eventBus.on("system:error", (error: Error) => {
+      console.error("[App] System error:", error);
     });
 
-    this.eventBus.on('printer:error', (error: Error) => {
-      console.error('[App] Printer error:', error);
+    this.eventBus.on("printer:error", (error: Error) => {
+      console.error("[App] Printer error:", error);
     });
   }
 
-  private mergeConfig(
-    defaults: AppConfig,
-    overrides: Partial<AppConfig>
-  ): AppConfig {
+  private async handleLogReceived(entry: LogEntry): Promise<LogSubmitResult> {
+    // Save to storage
+    if (this.storage) {
+      try {
+        await this.storage.save(entry);
+      } catch (error) {
+        console.error("[App] Failed to save log:", error);
+      }
+    }
+
+    // Format and print
+    const formattedContent = this.formatter.format(entry);
+    const job = createPrintJob(entry, formattedContent);
+    this.eventBus.emit("log:formatted", job);
+    const enqueued = this.printQueue.enqueue(job);
+
+    if (!enqueued) {
+      return {
+        accepted: false,
+        id: entry.id,
+        code: "queue_full",
+        message: "Queue is full",
+        queueSize: this.printQueue.size,
+      };
+    }
+
+    return {
+      accepted: true,
+      id: entry.id,
+      queueSize: this.printQueue.size,
+    };
+  }
+
+  private mergeConfig(defaults: AppConfig, overrides: DeepPartial<AppConfig>): AppConfig {
     return {
       server: { ...defaults.server, ...overrides.server },
       printer: { ...defaults.printer, ...overrides.printer },
       queue: { ...defaults.queue, ...overrides.queue },
       format: { ...defaults.format, ...overrides.format },
-      storage: overrides.storage ?? defaults.storage,
+      storage: overrides.storage ? { ...defaults.storage, ...overrides.storage } : defaults.storage,
     };
+  }
+
+  private async listenWithPortFallback(
+    server: ReturnType<typeof createServer>,
+    host: string,
+    port: number,
+  ): Promise<number> {
+    if (!Number.isInteger(port) || port < 0 || port > 65535) {
+      throw new Error(`Invalid port: ${port}`);
+    }
+
+    const startPort = port;
+    const maxPort = 65535;
+
+    if (startPort === 0) {
+      await this.listenOnce(server, host, startPort);
+      return this.getListeningPort(server, startPort);
+    }
+
+    for (let current = startPort; current <= maxPort; current++) {
+      if (await this.isPortInUse(host, current)) {
+        const next = current + 1;
+        if (next > maxPort) {
+          break;
+        }
+        console.warn(`[App] Port ${current} is in use, trying ${next}...`);
+        continue;
+      }
+
+      try {
+        await this.listenOnce(server, host, current);
+        if (current !== startPort) {
+          console.warn(`[App] Port ${startPort} is in use. Using ${current} instead.`);
+        }
+        return this.getListeningPort(server, current);
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === "EADDRINUSE") {
+          const next = current + 1;
+          if (next > maxPort) {
+            break;
+          }
+          console.warn(`[App] Port ${current} is in use, trying ${next}...`);
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new Error(`No available ports starting from ${startPort}`);
+  }
+
+  private listenOnce(
+    server: ReturnType<typeof createServer>,
+    host: string,
+    port: number,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const onError = (error: Error) => {
+        cleanup();
+        reject(error);
+      };
+      const onListening = () => {
+        cleanup();
+        resolve();
+      };
+      const cleanup = () => {
+        server.off("error", onError);
+        server.off("listening", onListening);
+      };
+
+      server.once("error", onError);
+      server.once("listening", onListening);
+      server.listen(port, host);
+    });
+  }
+
+  private getListeningPort(server: ReturnType<typeof createServer>, fallback: number): number {
+    const address = server.address();
+    if (address && typeof address === "object") {
+      return address.port;
+    }
+    return fallback;
+  }
+
+  private async isPortInUse(host: string, port: number): Promise<boolean> {
+    if (port === 0) {
+      return false;
+    }
+
+    const targets = this.getProbeHosts(host);
+    for (const target of targets) {
+      const inUse = await this.canConnect(target, port);
+      if (inUse) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private getProbeHosts(host: string): string[] {
+    if (host === "0.0.0.0" || host === "::" || host.trim() === "") {
+      return ["127.0.0.1", "::1"];
+    }
+    return [host];
+  }
+
+  private canConnect(host: string, port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = connect({ host, port });
+      const finish = (inUse: boolean) => {
+        socket.removeAllListeners();
+        socket.destroy();
+        resolve(inUse);
+      };
+
+      socket.setTimeout(200);
+      socket.once("connect", () => finish(true));
+      socket.once("timeout", () => finish(false));
+      socket.once("error", () => finish(false));
+    });
   }
 }

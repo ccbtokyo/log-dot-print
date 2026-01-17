@@ -1,5 +1,5 @@
-import { randomUUID } from 'crypto';
-import type { LogEntry, PrintJob } from './types.js';
+import { randomUUID } from "crypto";
+import type { LogEntry, PrintJob } from "./types.js";
 
 /**
  * Generate a unique ID
@@ -17,7 +17,7 @@ export function createPrintJob(entry: LogEntry, formattedContent: string): Print
     logEntry: entry,
     formattedContent,
     createdAt: new Date(),
-    status: 'pending',
+    status: "pending",
     retryCount: 0,
   };
 }
@@ -26,18 +26,18 @@ export function createPrintJob(entry: LogEntry, formattedContent: string): Print
  * Validate a log entry
  */
 export function validateLogEntry(data: unknown): data is LogEntry {
-  if (typeof data !== 'object' || data === null) {
+  if (typeof data !== "object" || data === null) {
     return false;
   }
 
   const entry = data as Record<string, unknown>;
 
   return (
-    typeof entry.id === 'string' &&
-    typeof entry.timestamp === 'string' &&
-    typeof entry.level === 'string' &&
-    typeof entry.source === 'string' &&
-    typeof entry.message === 'string'
+    typeof entry.id === "string" &&
+    typeof entry.timestamp === "string" &&
+    typeof entry.level === "string" &&
+    typeof entry.source === "string" &&
+    typeof entry.message === "string"
   );
 }
 
@@ -45,35 +45,36 @@ export function validateLogEntry(data: unknown): data is LogEntry {
  * Parse a log entry from JSON, assigning ID if missing
  */
 export function parseLogEntry(data: unknown): LogEntry | null {
-  if (typeof data !== 'object' || data === null) {
+  if (typeof data !== "object" || data === null) {
     return null;
   }
 
   const raw = data as Record<string, unknown>;
 
   // Required fields
-  if (typeof raw.message !== 'string') {
+  if (typeof raw.message !== "string") {
     return null;
   }
 
   return {
-    id: typeof raw.id === 'string' ? raw.id : generateId(),
-    timestamp: typeof raw.timestamp === 'string' ? raw.timestamp : new Date().toISOString(),
-    level: isValidLogLevel(raw.level) ? raw.level : 'info',
-    source: typeof raw.source === 'string' ? raw.source : 'unknown',
+    id: typeof raw.id === "string" ? raw.id : generateId(),
+    timestamp: typeof raw.timestamp === "string" ? raw.timestamp : new Date().toISOString(),
+    level: isValidLogLevel(raw.level) ? raw.level : "info",
+    source: typeof raw.source === "string" ? raw.source : "unknown",
     message: raw.message,
-    metadata: typeof raw.metadata === 'object' ? raw.metadata as Record<string, unknown> : undefined,
+    metadata:
+      typeof raw.metadata === "object" ? (raw.metadata as Record<string, unknown>) : undefined,
   };
 }
 
-function isValidLogLevel(level: unknown): level is LogEntry['level'] {
+function isValidLogLevel(level: unknown): level is LogEntry["level"] {
   return (
-    level === 'debug' ||
-    level === 'info' ||
-    level === 'action' ||
-    level === 'thought' ||
-    level === 'emotion' ||
-    level === 'error'
+    level === "debug" ||
+    level === "info" ||
+    level === "action" ||
+    level === "thought" ||
+    level === "emotion" ||
+    level === "error"
   );
 }
 
@@ -82,10 +83,10 @@ function isValidLogLevel(level: unknown): level is LogEntry['level'] {
  */
 export function formatTimestamp(isoString: string): string {
   const date = new Date(isoString);
-  return date.toLocaleTimeString('ja-JP', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+  return date.toLocaleTimeString("ja-JP", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: false,
   });
 }
@@ -97,7 +98,7 @@ export function truncate(text: string, maxWidth: number): string {
   if (text.length <= maxWidth) {
     return text;
   }
-  return text.slice(0, maxWidth - 3) + '...';
+  return text.slice(0, maxWidth - 3) + "...";
 }
 
 /**
@@ -106,11 +107,11 @@ export function truncate(text: string, maxWidth: number): string {
 export function wordWrap(text: string, maxWidth: number): string[] {
   const lines: string[] = [];
   const words = text.split(/\s+/);
-  let currentLine = '';
+  let currentLine = "";
 
   for (const word of words) {
     if (currentLine.length + word.length + 1 <= maxWidth) {
-      currentLine += (currentLine ? ' ' : '') + word;
+      currentLine += (currentLine ? " " : "") + word;
     } else {
       if (currentLine) {
         lines.push(currentLine);

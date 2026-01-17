@@ -1,17 +1,18 @@
-import { appendFile, readFile, mkdir, stat } from 'fs/promises';
-import { dirname } from 'path';
-import type { LogEntry, StoragePlugin, StorageQueryOptions } from '@log-dot-print/core';
+import { appendFile, readFile, mkdir, stat } from "fs/promises";
+import { dirname } from "path";
+import type { LogEntry, StoragePlugin, StorageQueryOptions } from "@log-dot-print/core";
 
 /**
  * File-based storage using JSONL (JSON Lines) format
  * Each line is a complete JSON object
  */
 export class FileStorage implements StoragePlugin {
-  readonly name = 'file-storage';
+  readonly name = "file-storage";
   private filePath: string;
   private writeBuffer: LogEntry[] = [];
   private flushInterval: ReturnType<typeof setInterval> | null = null;
   private flushIntervalMs: number;
+  private flushQueue: Promise<void> = Promise.resolve();
 
   constructor(filePath: string, options?: { flushIntervalMs?: number }) {
     this.filePath = filePath;
@@ -23,9 +24,11 @@ export class FileStorage implements StoragePlugin {
     await mkdir(dirname(this.filePath), { recursive: true });
 
     // Start flush interval
-    this.flushInterval = setInterval(() => {
-      this.flush().catch(console.error);
-    }, this.flushIntervalMs);
+    if (this.flushIntervalMs > 0) {
+      this.flushInterval = setInterval(() => {
+        this.enqueueFlush().catch(console.error);
+      }, this.flushIntervalMs);
+    }
 
     console.log(`[FileStorage] Initialized at ${this.filePath}`);
   }
@@ -35,8 +38,8 @@ export class FileStorage implements StoragePlugin {
       clearInterval(this.flushInterval);
       this.flushInterval = null;
     }
-    await this.flush();
-    console.log('[FileStorage] Shutdown complete');
+    await this.enqueueFlush();
+    console.log("[FileStorage] Shutdown complete");
   }
 
   async save(entry: LogEntry): Promise<void> {
@@ -47,35 +50,43 @@ export class FileStorage implements StoragePlugin {
     this.writeBuffer.push(...entries);
   }
 
+  private enqueueFlush(): Promise<void> {
+    const next = this.flushQueue.then(() => this.flush());
+    this.flushQueue = next.catch(() => {});
+    return next;
+  }
+
   private async flush(): Promise<void> {
     if (this.writeBuffer.length === 0) return;
 
     const toWrite = this.writeBuffer.splice(0, this.writeBuffer.length);
-    const lines = toWrite.map((entry) => JSON.stringify(entry)).join('\n') + '\n';
+    const lines = toWrite.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
 
-    await appendFile(this.filePath, lines, 'utf-8');
+    await appendFile(this.filePath, lines, "utf-8");
   }
 
   async query(options: StorageQueryOptions): Promise<LogEntry[]> {
     // Flush pending writes first
-    await this.flush();
+    await this.enqueueFlush();
 
     let entries: LogEntry[] = [];
 
     try {
-      const content = await readFile(this.filePath, 'utf-8');
-      const lines = content.trim().split('\n').filter(Boolean);
+      const content = await readFile(this.filePath, "utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
 
-      entries = lines.map((line) => {
-        try {
-          return JSON.parse(line) as LogEntry;
-        } catch {
-          return null;
-        }
-      }).filter((e): e is LogEntry => e !== null);
+      entries = lines
+        .map((line) => {
+          try {
+            return JSON.parse(line) as LogEntry;
+          } catch {
+            return null;
+          }
+        })
+        .filter((e): e is LogEntry => e !== null);
     } catch (error) {
       // File may not exist yet
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         throw error;
       }
     }
@@ -99,7 +110,7 @@ export class FileStorage implements StoragePlugin {
     // Sort
     entries.sort((a, b) => {
       const comp = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-      return options.order === 'desc' ? -comp : comp;
+      return options.order === "desc" ? -comp : comp;
     });
 
     // Pagination
@@ -111,11 +122,12 @@ export class FileStorage implements StoragePlugin {
   }
 
   async count(options?: StorageQueryOptions): Promise<number> {
+    await this.enqueueFlush();
     if (!options || Object.keys(options).length === 0) {
       // Fast count without loading all entries
       try {
-        const content = await readFile(this.filePath, 'utf-8');
-        return content.trim().split('\n').filter(Boolean).length;
+        const content = await readFile(this.filePath, "utf-8");
+        return content.trim().split("\n").filter(Boolean).length;
       } catch {
         return 0;
       }

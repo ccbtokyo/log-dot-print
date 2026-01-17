@@ -1,4 +1,4 @@
-import type { LogEntry } from './types.js';
+import type { LogEntry } from "./types.js";
 
 /**
  * Storage plugin interface for log persistence
@@ -34,5 +34,5 @@ export interface StorageQueryOptions {
   /** Offset for pagination */
   offset?: number;
   /** Order by timestamp */
-  order?: 'asc' | 'desc';
+  order?: "asc" | "desc";
 }

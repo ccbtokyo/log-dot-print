@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-import { readFile } from 'fs/promises';
-import { resolve } from 'path';
-import type { SystemConfig } from '@log-dot-print/core';
-import { LogPrintApp } from './app.js';
+import { readFile } from "fs/promises";
+import { resolve } from "path";
+import type { SystemConfig } from "@log-dot-print/core";
+import { LogPrintApp, type DeepPartial } from "./app.js";
 
-async function loadConfig(configPath?: string): Promise<Partial<SystemConfig>> {
+async function loadConfig(configPath?: string): Promise<DeepPartial<SystemConfig>> {
   if (!configPath) {
     return {};
   }
 
   try {
     const fullPath = resolve(process.cwd(), configPath);
-    const content = await readFile(fullPath, 'utf-8');
+    const content = await readFile(fullPath, "utf-8");
     return JSON.parse(content);
   } catch (error) {
     console.warn(`[CLI] Could not load config from ${configPath}:`, error);
@@ -21,11 +21,11 @@ async function loadConfig(configPath?: string): Promise<Partial<SystemConfig>> {
 }
 
 async function main(): Promise<void> {
-  console.log('╔════════════════════════════════════════╗');
-  console.log('║      Log-Dot-Print Server v1.0.0       ║');
-  console.log('║   AI Log Printer for Art Installations ║');
-  console.log('╚════════════════════════════════════════╝');
-  console.log('');
+  console.log("╔════════════════════════════════════════╗");
+  console.log("║      Log-Dot-Print Server v1.0.0       ║");
+  console.log("║   AI Log Printer for Art Installations ║");
+  console.log("╚════════════════════════════════════════╝");
+  console.log("");
 
   // Parse command line arguments
   const args = process.argv.slice(2);
@@ -36,15 +36,15 @@ async function main(): Promise<void> {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--config' || arg === '-c') {
+    if (arg === "--config" || arg === "-c") {
       configPath = args[++i];
-    } else if (arg === '--port' || arg === '-p') {
+    } else if (arg === "--port" || arg === "-p") {
       port = parseInt(args[++i], 10);
-    } else if (arg === '--host' || arg === '-h') {
+    } else if (arg === "--host" || arg === "-h") {
       host = args[++i];
-    } else if (arg === '--printer') {
+    } else if (arg === "--printer") {
       printerType = args[++i];
-    } else if (arg === '--help') {
+    } else if (arg === "--help") {
       printHelp();
       process.exit(0);
     }
@@ -54,7 +54,7 @@ async function main(): Promise<void> {
   const fileConfig = await loadConfig(configPath);
 
   // Build config with CLI overrides
-  const config: Partial<SystemConfig> = {
+  const config: DeepPartial<SystemConfig> = {
     ...fileConfig,
     server: {
       ...fileConfig.server,
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
     },
     printer: {
       ...fileConfig.printer,
-      ...(printerType && { type: printerType as SystemConfig['printer']['type'] }),
+      ...(printerType && { type: printerType as SystemConfig["printer"]["type"] }),
     },
   };
 
@@ -72,18 +72,18 @@ async function main(): Promise<void> {
 
   // Handle shutdown signals
   const shutdown = async () => {
-    console.log('\n[CLI] Received shutdown signal');
+    console.log("\n[CLI] Received shutdown signal");
     await app.stop();
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 
   try {
     await app.start();
   } catch (error) {
-    console.error('[CLI] Failed to start:', error);
+    console.error("[CLI] Failed to start:", error);
     process.exit(1);
   }
 }

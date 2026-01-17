@@ -1,18 +1,20 @@
-import { WebSocketServer, WebSocket } from 'ws';
-import type { Server } from 'http';
+import { WebSocketServer, WebSocket } from "ws";
+import type { Server } from "http";
 import type {
   LogReceiverPlugin,
+  LogEntry,
+  LogSubmitResult,
   SystemConfig,
   TypedEventEmitter,
-} from '@log-dot-print/core';
-import { parseLogEntry } from '@log-dot-print/core';
+} from "@log-dot-print/core";
+import { parseLogEntry } from "@log-dot-print/core";
 
 /**
  * WebSocket server for real-time log streaming from UE
  */
 export class WebSocketReceiver implements LogReceiverPlugin {
-  readonly name = 'websocket-receiver';
-  readonly version = '1.0.0';
+  readonly name = "websocket-receiver";
+  readonly version = "1.0.0";
 
   private wss: WebSocketServer | null = null;
   private eventBus: TypedEventEmitter | null = null;
@@ -30,9 +32,9 @@ export class WebSocketReceiver implements LogReceiverPlugin {
    * Attach to an existing HTTP server
    */
   attachToServer(server: Server): void {
-    this.wss = new WebSocketServer({ server, path: '/ws' });
+    this.wss = new WebSocketServer({ server, path: "/ws" });
     this.setupWebSocket();
-    console.log('[WebSocketReceiver] Attached to HTTP server on /ws');
+    console.log("[WebSocketReceiver] Attached to HTTP server on /ws");
   }
 
   async start(): Promise<void> {
@@ -48,7 +50,7 @@ export class WebSocketReceiver implements LogReceiverPlugin {
     return new Promise((resolve) => {
       if (this.wss) {
         this.wss.close(() => {
-          console.log('[WebSocketReceiver] Server stopped');
+          console.log("[WebSocketReceiver] Server stopped");
           resolve();
         });
       } else {
@@ -60,66 +62,173 @@ export class WebSocketReceiver implements LogReceiverPlugin {
   private setupWebSocket(): void {
     if (!this.wss) return;
 
-    this.wss.on('connection', (ws) => {
-      console.log('[WebSocketReceiver] Client connected');
+    this.wss.on("error", (error) => {
+      console.error("[WebSocketReceiver] Server error:", error);
+      this.eventBus?.emit("system:error", error);
+    });
+
+    this.wss.on("connection", (ws) => {
+      console.log("[WebSocketReceiver] Client connected");
       this.clients.add(ws);
 
-      ws.on('message', (data) => {
-        this.handleMessage(ws, data.toString());
+      ws.on("message", (data) => {
+        void this.handleMessage(ws, data.toString());
       });
 
-      ws.on('close', () => {
-        console.log('[WebSocketReceiver] Client disconnected');
+      ws.on("close", () => {
+        console.log("[WebSocketReceiver] Client disconnected");
         this.clients.delete(ws);
       });
 
-      ws.on('error', (error) => {
-        console.error('[WebSocketReceiver] Client error:', error);
+      ws.on("error", (error) => {
+        console.error("[WebSocketReceiver] Client error:", error);
         this.clients.delete(ws);
       });
 
       // Send welcome message
-      ws.send(JSON.stringify({ type: 'connected', message: 'Log receiver ready' }));
+      ws.send(JSON.stringify({ type: "connected", message: "Log receiver ready" }));
     });
   }
 
-  private handleMessage(ws: WebSocket, message: string): void {
+  private async handleMessage(ws: WebSocket, message: string): Promise<void> {
     try {
       const data = JSON.parse(message);
 
       // Handle different message types
-      if (data.type === 'log') {
+      if (data.type === "log") {
         const entry = parseLogEntry(data.payload || data);
         if (entry) {
-          this.eventBus?.emit('log:received', entry);
-          ws.send(JSON.stringify({ type: 'ack', id: entry.id }));
+          const result = await this.submitEntry(entry);
+          this.sendSubmitResponse(ws, result);
         } else {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid log entry' }));
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              code: "invalid_entry",
+              message: "Invalid log entry",
+            }),
+          );
         }
-      } else if (data.type === 'batch') {
+      } else if (data.type === "batch") {
         const entries = Array.isArray(data.payload) ? data.payload : [];
         const ids: string[] = [];
+        const rejected: Array<{
+          id: string;
+          code?: string;
+          message?: string;
+          queueSize?: number;
+        }> = [];
         for (const item of entries) {
           const entry = parseLogEntry(item);
           if (entry) {
-            this.eventBus?.emit('log:received', entry);
-            ids.push(entry.id);
+            const result = await this.submitEntry(entry);
+            if (result.accepted) {
+              ids.push(result.id);
+            } else {
+              rejected.push({
+                id: result.id,
+                code: result.code,
+                message: result.message,
+                queueSize: result.queueSize,
+              });
+            }
+          } else {
+            rejected.push({
+              id: "",
+              code: "invalid_entry",
+              message: "Invalid log entry",
+            });
           }
         }
-        ws.send(JSON.stringify({ type: 'batch_ack', ids }));
-      } else if (data.type === 'ping') {
-        ws.send(JSON.stringify({ type: 'pong' }));
+        ws.send(
+          JSON.stringify({
+            type: "batch_ack",
+            ids,
+            rejected: rejected.length > 0 ? rejected : undefined,
+          }),
+        );
+      } else if (data.type === "ping") {
+        ws.send(JSON.stringify({ type: "pong" }));
       } else {
         // Treat as direct log entry
         const entry = parseLogEntry(data);
         if (entry) {
-          this.eventBus?.emit('log:received', entry);
-          ws.send(JSON.stringify({ type: 'ack', id: entry.id }));
+          const result = await this.submitEntry(entry);
+          this.sendSubmitResponse(ws, result);
+        } else {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              code: "invalid_entry",
+              message: "Invalid log entry",
+            }),
+          );
         }
       }
     } catch {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
+      ws.send(JSON.stringify({ type: "error", message: "Invalid JSON" }));
     }
+  }
+
+  private sendSubmitResponse(ws: WebSocket, result: LogSubmitResult): void {
+    if (result.accepted) {
+      ws.send(JSON.stringify({ type: "ack", id: result.id }));
+      return;
+    }
+
+    ws.send(
+      JSON.stringify({
+        type: "error",
+        id: result.id,
+        code: result.code,
+        message: result.message ?? "Log rejected",
+        queueSize: result.queueSize,
+      }),
+    );
+  }
+
+  private submitEntry(entry: LogEntry): Promise<LogSubmitResult> {
+    const eventBus = this.eventBus;
+    if (!eventBus) {
+      return Promise.resolve({
+        accepted: false,
+        id: entry.id,
+        code: "not_ready",
+        message: "Receiver not initialized",
+      });
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve({
+          accepted: false,
+          id: entry.id,
+          code: "timeout",
+          message: "Submission timed out",
+        });
+      }, 5000);
+
+      const handled = eventBus.emit("log:received", entry, (result: LogSubmitResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        resolve(result);
+      });
+
+      if (!handled) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve({
+          accepted: false,
+          id: entry.id,
+          code: "no_handler",
+          message: "No log handler registered",
+        });
+      }
+    });
   }
 
   /**

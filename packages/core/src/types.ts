@@ -16,7 +16,23 @@ export interface LogEntry {
   metadata?: Record<string, unknown>;
 }
 
-export type LogLevel = 'debug' | 'info' | 'action' | 'thought' | 'emotion' | 'error';
+/**
+ * Result of submitting a log entry for printing
+ */
+export interface LogSubmitResult {
+  /** Whether the log entry was accepted into the print queue */
+  accepted: boolean;
+  /** Log entry identifier */
+  id: string;
+  /** Machine-readable error code when rejected */
+  code?: string;
+  /** Human-readable message when rejected */
+  message?: string;
+  /** Queue size at the time of submission */
+  queueSize?: number;
+}
+
+export type LogLevel = "debug" | "info" | "action" | "thought" | "emotion" | "error";
 
 /**
  * Print job representing a formatted log ready for printing
@@ -38,7 +54,7 @@ export interface PrintJob {
   error?: string;
 }
 
-export type PrintJobStatus = 'pending' | 'printing' | 'completed' | 'failed';
+export type PrintJobStatus = "pending" | "printing" | "completed" | "failed";
 
 /**
  * Printer status information
@@ -56,7 +72,7 @@ export interface PrinterStatus {
   info?: string;
 }
 
-export type PrinterType = 'cups' | 'escpos' | 'serial' | 'mock' | 'custom';
+export type PrinterType = "cups" | "escpos" | "serial" | "mock" | "custom";
 
 /**
  * Configuration for the log printer system
