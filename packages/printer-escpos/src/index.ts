@@ -1,15 +1,22 @@
-import type { PrintJob, PrinterStatus, PrinterType } from '@log-dot-print/core';
-import { BasePrinter, printerRegistry } from '@log-dot-print/printer-core';
+import type { PrintJob, PrinterStatus, PrinterType } from "@log-dot-print/core";
+import { BasePrinter, printerRegistry } from "@log-dot-print/printer-core";
+
+type EscposDevice = {
+  open: (cb: (err: Error | null) => void) => void;
+  close: (cb: () => void) => void;
+};
+
+type EscposDeviceConstructor = new (...args: any[]) => EscposDevice;
 
 // ESC/POS libraries - may not be installed
-let escpos: typeof import('escpos') | null = null;
-let USB: unknown = null;
-let Network: unknown = null;
-let Serial: unknown = null;
+let escpos: typeof import("escpos") | null = null;
+let USB: EscposDeviceConstructor | null = null;
+let Network: EscposDeviceConstructor | null = null;
+let Serial: EscposDeviceConstructor | null = null;
 
 interface EscPosPrinterOptions {
   /** Connection type */
-  connectionType: 'usb' | 'network' | 'serial';
+  connectionType: "usb" | "network" | "serial";
   /** For network: IP address or hostname */
   host?: string;
   /** For network: port (default 9100) */
@@ -35,12 +42,12 @@ interface EscPosPrinterOptions {
  * Supports USB, Network, and Serial connections
  */
 export class EscPosPrinter extends BasePrinter {
-  readonly name = 'escpos-printer';
-  readonly version = '1.0.0';
-  protected readonly printerType: PrinterType = 'escpos';
+  readonly name = "escpos-printer";
+  readonly version = "1.0.0";
+  protected readonly printerType: PrinterType = "escpos";
 
   private options: EscPosPrinterOptions;
-  private device: unknown = null;
+  private device: EscposDevice | null = null;
   private printer: unknown = null;
 
   constructor(options: EscPosPrinterOptions) {
@@ -54,7 +61,7 @@ export class EscPosPrinter extends BasePrinter {
       devicePath: options.devicePath,
       baudRate: options.baudRate ?? 9600,
       width: options.width ?? 48,
-      encoding: options.encoding ?? 'GB18030',
+      encoding: options.encoding ?? "GB18030",
       cut: options.cut ?? true,
     };
   }
@@ -62,21 +69,21 @@ export class EscPosPrinter extends BasePrinter {
   protected async connect(): Promise<void> {
     // Dynamic import of escpos
     try {
-      escpos = await import('escpos');
+      escpos = await import("escpos");
     } catch {
-      throw new Error('escpos package not installed. Run: npm install escpos');
+      throw new Error("escpos package not installed. Run: npm install escpos");
     }
 
     const { connectionType } = this.options;
 
     switch (connectionType) {
-      case 'usb':
+      case "usb":
         await this.connectUsb();
         break;
-      case 'network':
+      case "network":
         await this.connectNetwork();
         break;
-      case 'serial':
+      case "serial":
         await this.connectSerial();
         break;
       default:
@@ -88,21 +95,32 @@ export class EscPosPrinter extends BasePrinter {
 
   private async connectUsb(): Promise<void> {
     try {
-      const usbModule = await import('escpos-usb');
-      USB = usbModule.default || usbModule.USB || usbModule;
+      const usbModule = await import("escpos-usb");
+      USB = (usbModule.default || usbModule.USB || usbModule) as EscposDeviceConstructor;
     } catch {
-      throw new Error('escpos-usb not installed. Run: npm install escpos-usb');
+      throw new Error("escpos-usb not installed. Run: npm install escpos-usb");
     }
 
     const { vendorId, productId } = this.options;
-    // @ts-expect-error - dynamic module
-    this.device = vendorId && productId ? new USB(vendorId, productId) : new USB();
-    // @ts-expect-error - dynamic module
-    this.printer = new escpos.Printer(this.device, { encoding: this.options.encoding, width: this.options.width });
+    const deviceCtor = USB;
+    const escposModule = escpos;
+    if (!deviceCtor || !escposModule) {
+      throw new Error("escpos-usb not initialized");
+    }
+
+    this.device = vendorId && productId ? new deviceCtor(vendorId, productId) : new deviceCtor();
+    this.printer = new escposModule.Printer(this.device, {
+      encoding: this.options.encoding,
+      width: this.options.width,
+    });
 
     await new Promise<void>((resolve, reject) => {
-      // @ts-expect-error - dynamic module
-      this.device.open((err: Error | null) => {
+      const device = this.device;
+      if (!device) {
+        reject(new Error("USB device not available"));
+        return;
+      }
+      device.open((err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });
@@ -111,25 +129,36 @@ export class EscPosPrinter extends BasePrinter {
 
   private async connectNetwork(): Promise<void> {
     try {
-      const netModule = await import('escpos-network');
-      Network = netModule.default || netModule.Network || netModule;
+      const netModule = await import("escpos-network");
+      Network = (netModule.default || netModule.Network || netModule) as EscposDeviceConstructor;
     } catch {
-      throw new Error('escpos-network not installed. Run: npm install escpos-network');
+      throw new Error("escpos-network not installed. Run: npm install escpos-network");
     }
 
     const { host, port } = this.options;
     if (!host) {
-      throw new Error('Host is required for network connection');
+      throw new Error("Host is required for network connection");
     }
 
-    // @ts-expect-error - dynamic module
-    this.device = new Network(host, port);
-    // @ts-expect-error - dynamic module
-    this.printer = new escpos.Printer(this.device, { encoding: this.options.encoding, width: this.options.width });
+    const deviceCtor = Network;
+    const escposModule = escpos;
+    if (!deviceCtor || !escposModule) {
+      throw new Error("escpos-network not initialized");
+    }
+
+    this.device = new deviceCtor(host, port);
+    this.printer = new escposModule.Printer(this.device, {
+      encoding: this.options.encoding,
+      width: this.options.width,
+    });
 
     await new Promise<void>((resolve, reject) => {
-      // @ts-expect-error - dynamic module
-      this.device.open((err: Error | null) => {
+      const device = this.device;
+      if (!device) {
+        reject(new Error("Network device not available"));
+        return;
+      }
+      device.open((err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });
@@ -138,25 +167,38 @@ export class EscPosPrinter extends BasePrinter {
 
   private async connectSerial(): Promise<void> {
     try {
-      const serialModule = await import('escpos-serialport');
-      Serial = serialModule.default || serialModule.Serial || serialModule;
+      const serialModule = await import("escpos-serialport");
+      Serial = (serialModule.default ||
+        serialModule.Serial ||
+        serialModule) as EscposDeviceConstructor;
     } catch {
-      throw new Error('escpos-serialport not installed. Run: npm install escpos-serialport');
+      throw new Error("escpos-serialport not installed. Run: npm install escpos-serialport");
     }
 
     const { devicePath, baudRate } = this.options;
     if (!devicePath) {
-      throw new Error('Device path is required for serial connection');
+      throw new Error("Device path is required for serial connection");
     }
 
-    // @ts-expect-error - dynamic module
-    this.device = new Serial(devicePath, { baudRate });
-    // @ts-expect-error - dynamic module
-    this.printer = new escpos.Printer(this.device, { encoding: this.options.encoding, width: this.options.width });
+    const deviceCtor = Serial;
+    const escposModule = escpos;
+    if (!deviceCtor || !escposModule) {
+      throw new Error("escpos-serialport not initialized");
+    }
+
+    this.device = new deviceCtor(devicePath, { baudRate });
+    this.printer = new escposModule.Printer(this.device, {
+      encoding: this.options.encoding,
+      width: this.options.width,
+    });
 
     await new Promise<void>((resolve, reject) => {
-      // @ts-expect-error - dynamic module
-      this.device.open((err: Error | null) => {
+      const device = this.device;
+      if (!device) {
+        reject(new Error("Serial device not available"));
+        return;
+      }
+      device.open((err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });
@@ -164,15 +206,15 @@ export class EscPosPrinter extends BasePrinter {
   }
 
   protected async disconnect(): Promise<void> {
-    if (this.device) {
+    const device = this.device;
+    if (device) {
       await new Promise<void>((resolve) => {
-        // @ts-expect-error - dynamic module
-        this.device.close(() => resolve());
+        device.close(() => resolve());
       });
     }
     this.device = null;
     this.printer = null;
-    console.log('[EscPosPrinter] Disconnected');
+    console.log("[EscPosPrinter] Disconnected");
   }
 
   async getStatus(): Promise<PrinterStatus> {
@@ -187,7 +229,7 @@ export class EscPosPrinter extends BasePrinter {
 
   async print(job: PrintJob): Promise<void> {
     if (!this.printer) {
-      throw new Error('Printer not connected');
+      throw new Error("Printer not connected");
     }
 
     const p = this.printer as {
@@ -202,11 +244,11 @@ export class EscPosPrinter extends BasePrinter {
     };
 
     // Print content
-    const lines = job.formattedContent.split('\n');
+    const lines = job.formattedContent.split("\n");
 
-    p.font('a');
-    p.align('lt');
-    p.style('normal');
+    p.font("a");
+    p.align("lt");
+    p.style("normal");
     p.size(1, 1);
 
     for (const line of lines) {
@@ -228,23 +270,23 @@ export class EscPosPrinter extends BasePrinter {
  * Factory function for creating EscPosPrinter instances
  */
 export function createEscPosPrinter(options: Record<string, unknown>): EscPosPrinter {
-  const connectionType = options.connectionType as EscPosPrinterOptions['connectionType'];
+  const connectionType = options.connectionType as EscPosPrinterOptions["connectionType"];
 
-  if (!connectionType || !['usb', 'network', 'serial'].includes(connectionType)) {
-    throw new Error('connectionType must be one of: usb, network, serial');
+  if (!connectionType || !["usb", "network", "serial"].includes(connectionType)) {
+    throw new Error("connectionType must be one of: usb, network, serial");
   }
 
   return new EscPosPrinter({
     connectionType,
-    host: typeof options.host === 'string' ? options.host : undefined,
-    port: typeof options.port === 'number' ? options.port : undefined,
-    vendorId: typeof options.vendorId === 'number' ? options.vendorId : undefined,
-    productId: typeof options.productId === 'number' ? options.productId : undefined,
-    devicePath: typeof options.devicePath === 'string' ? options.devicePath : undefined,
-    baudRate: typeof options.baudRate === 'number' ? options.baudRate : undefined,
-    width: typeof options.width === 'number' ? options.width : undefined,
-    encoding: typeof options.encoding === 'string' ? options.encoding : undefined,
-    cut: typeof options.cut === 'boolean' ? options.cut : undefined,
+    host: typeof options.host === "string" ? options.host : undefined,
+    port: typeof options.port === "number" ? options.port : undefined,
+    vendorId: typeof options.vendorId === "number" ? options.vendorId : undefined,
+    productId: typeof options.productId === "number" ? options.productId : undefined,
+    devicePath: typeof options.devicePath === "string" ? options.devicePath : undefined,
+    baudRate: typeof options.baudRate === "number" ? options.baudRate : undefined,
+    width: typeof options.width === "number" ? options.width : undefined,
+    encoding: typeof options.encoding === "string" ? options.encoding : undefined,
+    cut: typeof options.cut === "boolean" ? options.cut : undefined,
   });
 }
 
@@ -252,7 +294,7 @@ export function createEscPosPrinter(options: Record<string, unknown>): EscPosPri
  * Register the ESC/POS printer plugin
  */
 export function register(): void {
-  printerRegistry.register('escpos', createEscPosPrinter);
+  printerRegistry.register("escpos", createEscPosPrinter);
 }
 
 // Auto-register when imported

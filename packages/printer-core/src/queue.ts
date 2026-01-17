@@ -1,8 +1,4 @@
-import type {
-  PrintJob,
-  PrinterPlugin,
-  TypedEventEmitter,
-} from '@log-dot-print/core';
+import type { PrintJob, PrinterPlugin, TypedEventEmitter } from "@log-dot-print/core";
 
 interface QueueConfig {
   maxSize: number;
@@ -43,12 +39,12 @@ export class PrintQueue {
    */
   enqueue(job: PrintJob): boolean {
     if (this.queue.length >= this.config.maxSize) {
-      this.eventBus?.emit('queue:full', this.queue.length);
+      this.eventBus?.emit("queue:full", this.queue.length);
       return false;
     }
 
     this.queue.push(job);
-    this.eventBus?.emit('log:queued', job);
+    this.eventBus?.emit("log:queued", job);
 
     // Start processing if not already running
     if (!this.processing) {
@@ -86,13 +82,13 @@ export class PrintQueue {
       const job = this.queue[0];
 
       try {
-        job.status = 'printing';
-        this.eventBus?.emit('print:started', job);
+        job.status = "printing";
+        this.eventBus?.emit("print:started", job);
 
         await this.printer.print(job);
 
-        job.status = 'completed';
-        this.eventBus?.emit('print:completed', job);
+        job.status = "completed";
+        this.eventBus?.emit("print:completed", job);
         this.queue.shift();
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
@@ -100,12 +96,12 @@ export class PrintQueue {
         job.retryCount++;
 
         if (job.retryCount <= this.config.retryAttempts) {
-          this.eventBus?.emit('print:retry', job, job.retryCount);
+          this.eventBus?.emit("print:retry", job, job.retryCount);
           await this.delay(this.config.retryDelayMs * job.retryCount);
         } else {
-          job.status = 'failed';
+          job.status = "failed";
           job.error = err.message;
-          this.eventBus?.emit('print:failed', job, err);
+          this.eventBus?.emit("print:failed", job, err);
           this.queue.shift();
         }
       }
@@ -114,7 +110,7 @@ export class PrintQueue {
     this.processing = false;
 
     if (this.queue.length === 0) {
-      this.eventBus?.emit('queue:drained');
+      this.eventBus?.emit("queue:drained");
     }
   }
 

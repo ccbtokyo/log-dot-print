@@ -1,9 +1,9 @@
-import type { PrintJob, PrinterStatus, PrinterType } from '@log-dot-print/core';
-import { BasePrinter, printerRegistry } from '@log-dot-print/printer-core';
+import type { PrintJob, PrinterStatus, PrinterType } from "@log-dot-print/core";
+import { BasePrinter, printerRegistry } from "@log-dot-print/printer-core";
 
 // SerialPort - dynamically imported
-type SerialPortType = import('serialport').SerialPort;
-let SerialPort: typeof import('serialport').SerialPort | null = null;
+type SerialPortType = import("serialport").SerialPort;
+let SerialPort: typeof import("serialport").SerialPort | null = null;
 
 interface SerialPrinterOptions {
   /** Serial port path (e.g., /dev/ttyUSB0, COM1) */
@@ -15,9 +15,9 @@ interface SerialPrinterOptions {
   /** Stop bits */
   stopBits?: 1 | 1.5 | 2;
   /** Parity */
-  parity?: 'none' | 'even' | 'odd' | 'mark' | 'space';
+  parity?: "none" | "even" | "odd" | "mark" | "space";
   /** Line ending style */
-  lineEnding?: 'crlf' | 'lf' | 'cr';
+  lineEnding?: "crlf" | "lf" | "cr";
   /** Character encoding */
   encoding?: BufferEncoding;
   /** Delay between characters in ms (for slow printers) */
@@ -35,11 +35,13 @@ interface SerialPrinterOptions {
  * For dot matrix and legacy printers connected via serial port
  */
 export class SerialPrinter extends BasePrinter {
-  readonly name = 'serial-printer';
-  readonly version = '1.0.0';
-  protected readonly printerType: PrinterType = 'serial';
+  readonly name = "serial-printer";
+  readonly version = "1.0.0";
+  protected readonly printerType: PrinterType = "serial";
 
-  private options: Required<Omit<SerialPrinterOptions, 'initCommands'>> & { initCommands?: number[] };
+  private options: Required<Omit<SerialPrinterOptions, "initCommands">> & {
+    initCommands?: number[];
+  };
   private port: SerialPortType | null = null;
 
   constructor(options: SerialPrinterOptions) {
@@ -49,9 +51,9 @@ export class SerialPrinter extends BasePrinter {
       baudRate: options.baudRate ?? 9600,
       dataBits: options.dataBits ?? 8,
       stopBits: options.stopBits ?? 1,
-      parity: options.parity ?? 'none',
-      lineEnding: options.lineEnding ?? 'crlf',
-      encoding: options.encoding ?? 'ascii',
+      parity: options.parity ?? "none",
+      lineEnding: options.lineEnding ?? "crlf",
+      encoding: options.encoding ?? "ascii",
       charDelayMs: options.charDelayMs ?? 0,
       lineDelayMs: options.lineDelayMs ?? 0,
       initCommands: options.initCommands,
@@ -63,10 +65,10 @@ export class SerialPrinter extends BasePrinter {
     // Dynamic import of serialport
     if (!SerialPort) {
       try {
-        const module = await import('serialport');
+        const module = await import("serialport");
         SerialPort = module.SerialPort;
       } catch {
-        throw new Error('serialport package not installed. Run: npm install serialport');
+        throw new Error("serialport package not installed. Run: npm install serialport");
       }
     }
 
@@ -103,7 +105,7 @@ export class SerialPrinter extends BasePrinter {
       });
     }
     this.port = null;
-    console.log('[SerialPrinter] Disconnected');
+    console.log("[SerialPrinter] Disconnected");
   }
 
   async getStatus(): Promise<PrinterStatus> {
@@ -118,11 +120,11 @@ export class SerialPrinter extends BasePrinter {
 
   async print(job: PrintJob): Promise<void> {
     if (!this.port?.isOpen) {
-      throw new Error('Serial port not open');
+      throw new Error("Serial port not open");
     }
 
     const lineEnding = this.getLineEnding();
-    const lines = job.formattedContent.split('\n');
+    const lines = job.formattedContent.split("\n");
 
     for (const line of lines) {
       const data = Buffer.from(line + lineEnding, this.options.encoding);
@@ -144,7 +146,7 @@ export class SerialPrinter extends BasePrinter {
 
     // Form feed if configured
     if (this.options.formFeed) {
-      await this.writeBytes(Buffer.from([0x0C])); // Form feed character
+      await this.writeBytes(Buffer.from([0x0c])); // Form feed character
     }
 
     // Ensure all data is written
@@ -153,9 +155,12 @@ export class SerialPrinter extends BasePrinter {
 
   private getLineEnding(): string {
     switch (this.options.lineEnding) {
-      case 'crlf': return '\r\n';
-      case 'lf': return '\n';
-      case 'cr': return '\r';
+      case "crlf":
+        return "\r\n";
+      case "lf":
+        return "\n";
+      case "cr":
+        return "\r";
     }
   }
 
@@ -186,7 +191,7 @@ export class SerialPrinter extends BasePrinter {
    */
   async sendRaw(bytes: number[]): Promise<void> {
     if (!this.port?.isOpen) {
-      throw new Error('Serial port not open');
+      throw new Error("Serial port not open");
     }
     await this.writeBytes(Buffer.from(bytes));
     await this.drain();
@@ -198,7 +203,7 @@ export class SerialPrinter extends BasePrinter {
   static async listPorts(): Promise<{ path: string; manufacturer?: string }[]> {
     if (!SerialPort) {
       try {
-        const module = await import('serialport');
+        const module = await import("serialport");
         SerialPort = module.SerialPort;
       } catch {
         return [];
@@ -206,7 +211,7 @@ export class SerialPrinter extends BasePrinter {
     }
 
     // Use the list function from serialport
-    const { SerialPort: SP } = await import('serialport');
+    const { SerialPort: SP } = await import("serialport");
     const portList = await SP.list();
     return portList.map((p) => ({
       path: p.path,
@@ -219,22 +224,30 @@ export class SerialPrinter extends BasePrinter {
  * Factory function for creating SerialPrinter instances
  */
 export function createSerialPrinter(options: Record<string, unknown>): SerialPrinter {
-  if (typeof options.path !== 'string') {
-    throw new Error('Serial printer requires a path option');
+  if (typeof options.path !== "string") {
+    throw new Error("Serial printer requires a path option");
   }
 
   return new SerialPrinter({
     path: options.path,
-    baudRate: typeof options.baudRate === 'number' ? options.baudRate : undefined,
-    dataBits: typeof options.dataBits === 'number' ? options.dataBits as 5 | 6 | 7 | 8 : undefined,
-    stopBits: typeof options.stopBits === 'number' ? options.stopBits as 1 | 1.5 | 2 : undefined,
-    parity: typeof options.parity === 'string' ? options.parity as SerialPrinterOptions['parity'] : undefined,
-    lineEnding: typeof options.lineEnding === 'string' ? options.lineEnding as SerialPrinterOptions['lineEnding'] : undefined,
-    encoding: typeof options.encoding === 'string' ? options.encoding as BufferEncoding : undefined,
-    charDelayMs: typeof options.charDelayMs === 'number' ? options.charDelayMs : undefined,
-    lineDelayMs: typeof options.lineDelayMs === 'number' ? options.lineDelayMs : undefined,
+    baudRate: typeof options.baudRate === "number" ? options.baudRate : undefined,
+    dataBits:
+      typeof options.dataBits === "number" ? (options.dataBits as 5 | 6 | 7 | 8) : undefined,
+    stopBits: typeof options.stopBits === "number" ? (options.stopBits as 1 | 1.5 | 2) : undefined,
+    parity:
+      typeof options.parity === "string"
+        ? (options.parity as SerialPrinterOptions["parity"])
+        : undefined,
+    lineEnding:
+      typeof options.lineEnding === "string"
+        ? (options.lineEnding as SerialPrinterOptions["lineEnding"])
+        : undefined,
+    encoding:
+      typeof options.encoding === "string" ? (options.encoding as BufferEncoding) : undefined,
+    charDelayMs: typeof options.charDelayMs === "number" ? options.charDelayMs : undefined,
+    lineDelayMs: typeof options.lineDelayMs === "number" ? options.lineDelayMs : undefined,
     initCommands: Array.isArray(options.initCommands) ? options.initCommands : undefined,
-    formFeed: typeof options.formFeed === 'boolean' ? options.formFeed : undefined,
+    formFeed: typeof options.formFeed === "boolean" ? options.formFeed : undefined,
   });
 }
 
@@ -242,7 +255,7 @@ export function createSerialPrinter(options: Record<string, unknown>): SerialPri
  * Register the serial printer plugin
  */
 export function register(): void {
-  printerRegistry.register('serial', createSerialPrinter);
+  printerRegistry.register("serial", createSerialPrinter);
 }
 
 // Auto-register when imported

@@ -5,7 +5,7 @@ import type {
   SystemConfig,
   TypedEventEmitter,
   PrinterType,
-} from '@log-dot-print/core';
+} from "@log-dot-print/core";
 
 /**
  * Base class for printer plugins
@@ -27,10 +27,10 @@ export abstract class BasePrinter implements PrinterPlugin {
     try {
       await this.connect();
       this.connected = true;
-      this.eventBus.emit('printer:connected', await this.getStatus());
+      this.eventBus.emit("printer:connected", await this.getStatus());
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
-      this.eventBus.emit('printer:error', err);
+      this.eventBus.emit("printer:error", err);
       throw err;
     }
   }
@@ -39,7 +39,7 @@ export abstract class BasePrinter implements PrinterPlugin {
     const status = await this.getStatus();
     await this.disconnect();
     this.connected = false;
-    this.eventBus?.emit('printer:disconnected', status);
+    this.eventBus?.emit("printer:disconnected", status);
   }
 
   async getStatus(): Promise<PrinterStatus> {
@@ -84,6 +84,6 @@ export abstract class BasePrinter implements PrinterPlugin {
    */
   protected async emitStatusUpdate(): Promise<void> {
     const status = await this.getStatus();
-    this.eventBus?.emit('printer:status', status);
+    this.eventBus?.emit("printer:status", status);
   }
 }

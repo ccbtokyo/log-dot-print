@@ -3,8 +3,8 @@ import type {
   LogFormatterPlugin,
   SystemConfig,
   TypedEventEmitter,
-} from '@log-dot-print/core';
-import { formatTimestamp, wordWrap } from '@log-dot-print/core';
+} from "@log-dot-print/core";
+import { formatTimestamp, wordWrap } from "@log-dot-print/core";
 
 interface FormatterConfig {
   maxLineWidth: number;
@@ -16,8 +16,8 @@ interface FormatterConfig {
  * Default log formatter for printing
  */
 export class DefaultFormatter implements LogFormatterPlugin {
-  readonly name = 'default-formatter';
-  readonly version = '1.0.0';
+  readonly name = "default-formatter";
+  readonly version = "1.0.0";
 
   private config: FormatterConfig = {
     maxLineWidth: 80,
@@ -57,9 +57,9 @@ export class DefaultFormatter implements LogFormatterPlugin {
 
     headerParts.push(`(${entry.level.toUpperCase()})`);
 
-    const header = headerParts.join(' ');
+    const header = headerParts.join(" ");
     lines.push(header);
-    lines.push('-'.repeat(Math.min(header.length, maxLineWidth)));
+    lines.push("-".repeat(Math.min(header.length, maxLineWidth)));
 
     // Wrap and add message
     const messageLines = wordWrap(entry.message, maxLineWidth);
@@ -67,8 +67,8 @@ export class DefaultFormatter implements LogFormatterPlugin {
 
     // Add metadata if present
     if (entry.metadata && Object.keys(entry.metadata).length > 0) {
-      lines.push('');
-      lines.push('metadata:');
+      lines.push("");
+      lines.push("metadata:");
       for (const [key, value] of Object.entries(entry.metadata)) {
         const metaLine = `  ${key}: ${JSON.stringify(value)}`;
         const wrappedMeta = wordWrap(metaLine, maxLineWidth);
@@ -77,11 +77,11 @@ export class DefaultFormatter implements LogFormatterPlugin {
     }
 
     // Add separator
-    lines.push('');
-    lines.push('='.repeat(maxLineWidth));
-    lines.push('');
+    lines.push("");
+    lines.push("=".repeat(maxLineWidth));
+    lines.push("");
 
-    return lines.join('\n');
+    return lines.join("\n");
   }
 }
 
@@ -89,8 +89,8 @@ export class DefaultFormatter implements LogFormatterPlugin {
  * Minimal formatter - just the message
  */
 export class MinimalFormatter implements LogFormatterPlugin {
-  readonly name = 'minimal-formatter';
-  readonly version = '1.0.0';
+  readonly name = "minimal-formatter";
+  readonly version = "1.0.0";
 
   private maxLineWidth = 80;
 
@@ -102,8 +102,8 @@ export class MinimalFormatter implements LogFormatterPlugin {
 
   format(entry: LogEntry): string {
     const lines = wordWrap(entry.message, this.maxLineWidth);
-    lines.push('');
-    return lines.join('\n');
+    lines.push("");
+    return lines.join("\n");
   }
 }
 
@@ -111,13 +111,13 @@ export class MinimalFormatter implements LogFormatterPlugin {
  * JSON formatter - outputs raw JSON
  */
 export class JsonFormatter implements LogFormatterPlugin {
-  readonly name = 'json-formatter';
-  readonly version = '1.0.0';
+  readonly name = "json-formatter";
+  readonly version = "1.0.0";
 
   async initialize(): Promise<void> {}
   async shutdown(): Promise<void> {}
 
   format(entry: LogEntry): string {
-    return JSON.stringify(entry, null, 2) + '\n\n';
+    return JSON.stringify(entry, null, 2) + "\n\n";
   }
 }

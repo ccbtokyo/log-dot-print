@@ -1,4 +1,4 @@
-import type { PrinterPlugin, PrinterPluginFactory } from '@log-dot-print/core';
+import type { PrinterPlugin, PrinterPluginFactory } from "@log-dot-print/core";
 
 /**
  * Plugin registry for managing printer plugins
@@ -24,7 +24,7 @@ export class PrinterRegistry {
     const factory = this.factories.get(type);
     if (!factory) {
       throw new Error(
-        `Unknown printer type '${type}'. Available types: ${this.listTypes().join(', ')}`
+        `Unknown printer type '${type}'. Available types: ${this.listTypes().join(", ")}`,
       );
     }
 
