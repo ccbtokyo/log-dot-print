@@ -37,45 +37,53 @@ export function validateLogEntry(data: unknown): data is LogEntry {
     typeof entry.timestamp === "string" &&
     typeof entry.level === "string" &&
     typeof entry.source === "string" &&
-    typeof entry.message === "string"
+    typeof entry.message === "string" &&
+    typeof entry.printed === "boolean"
   );
 }
 
 /**
  * Parse a log entry from JSON, assigning ID if missing
  */
-export function parseLogEntry(data: unknown): LogEntry | null {
-  if (typeof data !== "object" || data === null) {
+export interface ParseLogEntryOptions {
+  source?: string;
+  level?: string;
+}
+
+export function parseLogEntry(data: unknown, options: ParseLogEntryOptions = {}): LogEntry | null {
+  if (typeof data === "undefined") {
     return null;
   }
 
-  const raw = data as Record<string, unknown>;
-
-  // Required fields
-  if (typeof raw.message !== "string") {
+  const message = normalizeLogMessage(data);
+  if (message === null) {
     return null;
   }
+
+  const source = options.source?.trim() ? options.source.trim() : "unknown";
+  const level = options.level?.trim() ? options.level.trim() : "info";
 
   return {
-    id: typeof raw.id === "string" ? raw.id : generateId(),
-    timestamp: typeof raw.timestamp === "string" ? raw.timestamp : new Date().toISOString(),
-    level: isValidLogLevel(raw.level) ? raw.level : "info",
-    source: typeof raw.source === "string" ? raw.source : "unknown",
-    message: raw.message,
-    metadata:
-      typeof raw.metadata === "object" ? (raw.metadata as Record<string, unknown>) : undefined,
+    id: generateId(),
+    timestamp: new Date().toISOString(),
+    level,
+    source,
+    message,
+    printed: false,
   };
 }
 
-function isValidLogLevel(level: unknown): level is LogEntry["level"] {
-  return (
-    level === "debug" ||
-    level === "info" ||
-    level === "action" ||
-    level === "thought" ||
-    level === "emotion" ||
-    level === "error"
-  );
+function normalizeLogMessage(message: unknown): string | null {
+  if (typeof message === "undefined") {
+    return null;
+  }
+
+  try {
+    const serialized = JSON.stringify(message);
+    return typeof serialized === "string" ? serialized : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -31,6 +31,7 @@ const createMockJob = (id: string): PrintJob => ({
     source: "test",
     level: "info",
     message: "Test message",
+    printed: false,
   },
   formattedContent: "Formatted test content",
   createdAt: new Date(),

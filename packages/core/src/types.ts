@@ -10,8 +10,10 @@ export interface LogEntry {
   level: LogLevel;
   /** AI character or system that generated the log */
   source: string;
-  /** The log message content */
+  /** Serialized payload to print */
   message: string;
+  /** Whether the log has been printed */
+  printed: boolean;
   /** Optional structured data */
   metadata?: Record<string, unknown>;
 }
@@ -32,7 +34,7 @@ export interface LogSubmitResult {
   queueSize?: number;
 }
 
-export type LogLevel = "debug" | "info" | "action" | "thought" | "emotion" | "error";
+export type LogLevel = string;
 
 /**
  * Print job representing a formatted log ready for printing
@@ -99,5 +101,6 @@ export interface SystemConfig {
     maxLineWidth: number;
     includeTimestamp: boolean;
     includeSource: boolean;
+    includeLevel: boolean;
   };
 }

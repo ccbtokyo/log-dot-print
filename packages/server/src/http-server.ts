@@ -7,6 +7,45 @@ import type {
   TypedEventEmitter,
 } from "@log-dot-print/core";
 import { parseLogEntry } from "@log-dot-print/core";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { cors } from "hono/cors";
+import { resolveRequestSource } from "./request-source.js";
+
+const LogSubmitPayloadSchema = z
+  .object({
+    success: z.boolean(),
+    id: z.string(),
+    error: z.string().optional(),
+    code: z.string().optional(),
+    queueSize: z.number().optional(),
+  })
+  .openapi("LogSubmitPayload");
+
+const ErrorResponseSchema = z
+  .object({
+    error: z.string(),
+  })
+  .openapi("ErrorResponse");
+
+const HealthResponseSchema = z
+  .object({
+    status: z.literal("ok"),
+  })
+  .openapi("HealthResponse");
+
+const LogRequestSchema = z.unknown().openapi({
+  description: "Any JSON value. The server will serialize and accept it as a log payload.",
+});
+
+const BatchLogRequestSchema = z.array(z.unknown()).openapi({
+  description: "Array of JSON values. Each entry is treated as a log payload.",
+});
+
+const BatchLogResponseSchema = z
+  .object({
+    results: z.array(LogSubmitPayloadSchema),
+  })
+  .openapi("BatchLogResponse");
 
 /**
  * HTTP server for receiving log entries via REST API
@@ -18,6 +57,14 @@ export class HttpReceiver implements LogReceiverPlugin {
   private server: ReturnType<typeof createServer> | null = null;
   private eventBus: TypedEventEmitter | null = null;
   private config: SystemConfig | null = null;
+  private app: OpenAPIHono;
+
+  constructor() {
+    this.app = new OpenAPIHono();
+    this.configureMiddleware();
+    this.configureRoutes();
+    this.configureOpenApi();
+  }
 
   async initialize(eventBus: TypedEventEmitter, config: SystemConfig): Promise<void> {
     this.eventBus = eventBus;
@@ -61,121 +108,265 @@ export class HttpReceiver implements LogReceiverPlugin {
     });
   }
 
+  private configureMiddleware(): void {
+    this.app.use(
+      "*",
+      cors({
+        origin: "*",
+        allowMethods: ["POST", "GET", "OPTIONS"],
+        allowHeaders: ["Content-Type"],
+      }),
+    );
+
+    this.app.options("*", (c) => c.body(null, 204));
+  }
+
+  private configureRoutes(): void {
+    const healthRoute = createRoute({
+      method: "get",
+      path: "/health",
+      responses: {
+        200: {
+          description: "Health check",
+          content: {
+            "application/json": {
+              schema: HealthResponseSchema,
+            },
+          },
+        },
+      },
+    });
+
+    this.app.openapi(healthRoute, (c) => c.json({ status: "ok" }));
+
+    const logSubmitRoute = createRoute({
+      method: "post",
+      path: "/log",
+      request: {
+        body: {
+          content: {
+            "application/json": {
+              schema: LogRequestSchema,
+            },
+          },
+          required: true,
+        },
+      },
+      responses: {
+        200: {
+          description: "Log accepted",
+          content: {
+            "application/json": {
+              schema: LogSubmitPayloadSchema,
+            },
+          },
+        },
+        400: {
+          description: "Invalid JSON or log payload",
+          content: {
+            "application/json": {
+              schema: ErrorResponseSchema,
+            },
+          },
+        },
+        503: {
+          description: "Queue full or handler unavailable",
+          content: {
+            "application/json": {
+              schema: LogSubmitPayloadSchema,
+            },
+          },
+        },
+        504: {
+          description: "Submission timeout",
+          content: {
+            "application/json": {
+              schema: LogSubmitPayloadSchema,
+            },
+          },
+        },
+        500: {
+          description: "Unexpected error",
+          content: {
+            "application/json": {
+              schema: LogSubmitPayloadSchema,
+            },
+          },
+        },
+      },
+    });
+
+    this.app.openapi(logSubmitRoute, async (c) => {
+      const body = c.req.valid("json");
+      const source = resolveRequestSource(c.req.raw.headers);
+      const entry = parseLogEntry(body, { source });
+      if (!entry) {
+        return c.json({ error: "Invalid log entry" }, 400);
+      }
+
+      const result = await this.submitEntry(entry);
+      const payload = this.buildHttpPayload(result);
+      const status: 200 | 500 | 503 | 504 = result.accepted ? 200 : this.statusForResult(result);
+
+      return c.json(payload, status);
+    });
+
+    const batchSubmitRoute = createRoute({
+      method: "post",
+      path: "/logs",
+      request: {
+        body: {
+          content: {
+            "application/json": {
+              schema: BatchLogRequestSchema,
+            },
+          },
+          required: true,
+        },
+      },
+      responses: {
+        200: {
+          description: "All logs accepted",
+          content: {
+            "application/json": {
+              schema: BatchLogResponseSchema,
+            },
+          },
+        },
+        400: {
+          description: "Invalid JSON or payload format",
+          content: {
+            "application/json": {
+              schema: ErrorResponseSchema,
+            },
+          },
+        },
+        503: {
+          description: "One or more logs rejected",
+          content: {
+            "application/json": {
+              schema: BatchLogResponseSchema,
+            },
+          },
+        },
+      },
+    });
+
+    this.app.openapi(batchSubmitRoute, async (c) => {
+      const body = c.req.valid("json");
+      if (!Array.isArray(body)) {
+        return c.json({ error: "Expected array of log entries" }, 400);
+      }
+
+      const results: Array<{
+        success: boolean;
+        id: string;
+        error?: string;
+        code?: string;
+        queueSize?: number;
+      }> = [];
+
+      const source = resolveRequestSource(c.req.raw.headers);
+      for (const item of body) {
+        const entry = parseLogEntry(item, { source });
+        if (entry) {
+          const result = await this.submitEntry(entry);
+          results.push(this.buildHttpPayload(result));
+        } else {
+          results.push({
+            success: false,
+            id: "",
+            error: "Invalid log entry",
+            code: "invalid_entry",
+          });
+        }
+      }
+
+      const allAccepted = results.every((result) => result.success);
+      return c.json({ results }, allAccepted ? 200 : 503);
+    });
+  }
+
+  private configureOpenApi(): void {
+    this.app.doc("/openapi.json", {
+      openapi: "3.1.0",
+      info: {
+        title: "Log-Dot-Print HTTP API",
+        version: this.version,
+        description: "HTTP endpoints for log ingestion and health checks.",
+      },
+    });
+  }
+
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
-    // Enable CORS
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-    if (req.method === "OPTIONS") {
-      res.writeHead(204);
-      res.end();
-      return;
-    }
-
-    // Health check
-    if (req.method === "GET" && req.url === "/health") {
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "ok" }));
-      return;
-    }
-
-    // Log submission
-    if (req.method === "POST" && req.url === "/log") {
-      this.handleLogSubmit(req, res);
-      return;
-    }
-
-    // Batch log submission
-    if (req.method === "POST" && req.url === "/logs") {
-      this.handleBatchLogSubmit(req, res);
-      return;
-    }
-
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Not found" }));
+    void this.handleRequestAsync(req, res);
   }
 
-  private handleLogSubmit(req: IncomingMessage, res: ServerResponse): void {
-    let body = "";
+  private async handleRequestAsync(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    try {
+      const request = await this.buildRequest(req);
+      const response = await this.app.fetch(request);
 
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
+      res.statusCode = response.status;
+      response.headers.forEach((value, key) => {
+        res.setHeader(key, value);
+      });
 
-    req.on("end", async () => {
-      try {
-        const data = JSON.parse(body);
-        const entry = parseLogEntry(data);
+      const body = await response.arrayBuffer();
+      res.end(Buffer.from(body));
+    } catch (error) {
+      console.error("[HttpReceiver] Request handling failed", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+  }
 
-        if (!entry) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Invalid log entry" }));
-          return;
+  private async buildRequest(req: IncomingMessage): Promise<Request> {
+    const host = req.headers.host ?? "localhost";
+    const url = new URL(req.url ?? "/", `http://${host}`);
+    const headers = new Headers();
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (typeof value === "undefined") continue;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          headers.append(key, item);
         }
-
-        const result = await this.submitEntry(entry);
-        const payload = this.buildHttpPayload(result);
-
-        res.writeHead(result.accepted ? 200 : this.statusForResult(result), {
-          "Content-Type": "application/json",
-        });
-        res.end(JSON.stringify(payload));
-      } catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid JSON" }));
+      } else {
+        headers.set(key, value);
       }
+    }
+
+    const remoteAddress = req.socket?.remoteAddress;
+    if (remoteAddress && !headers.has("x-log-dot-print-remote-address")) {
+      headers.set("x-log-dot-print-remote-address", remoteAddress);
+    }
+
+    const method = req.method ?? "GET";
+    const body = await this.readRequestBody(req, method);
+
+    return new Request(url.toString(), {
+      method,
+      headers,
+      body,
     });
   }
 
-  private handleBatchLogSubmit(req: IncomingMessage, res: ServerResponse): void {
-    let body = "";
+  private async readRequestBody(req: IncomingMessage, method: string): Promise<Buffer | undefined> {
+    if (method === "GET" || method === "HEAD") {
+      return undefined;
+    }
 
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
 
-    req.on("end", async () => {
-      try {
-        const data = JSON.parse(body);
+    if (chunks.length === 0) {
+      return undefined;
+    }
 
-        if (!Array.isArray(data)) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Expected array of log entries" }));
-          return;
-        }
-
-        const results: Array<{
-          success: boolean;
-          id: string;
-          error?: string;
-          code?: string;
-          queueSize?: number;
-        }> = [];
-
-        for (const item of data) {
-          const entry = parseLogEntry(item);
-          if (entry) {
-            const result = await this.submitEntry(entry);
-            results.push(this.buildHttpPayload(result));
-          } else {
-            results.push({
-              success: false,
-              id: "",
-              error: "Invalid log entry",
-              code: "invalid_entry",
-            });
-          }
-        }
-
-        const allAccepted = results.every((result) => result.success);
-        res.writeHead(allAccepted ? 200 : 503, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ results }));
-      } catch {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid JSON" }));
-      }
-    });
+    return Buffer.concat(chunks);
   }
 
   private buildHttpPayload(result: LogSubmitResult): {
@@ -202,8 +393,7 @@ export class HttpReceiver implements LogReceiverPlugin {
     };
   }
 
-  private statusForResult(result: LogSubmitResult): number {
-    if (result.accepted) return 200;
+  private statusForResult(result: LogSubmitResult): 500 | 503 | 504 {
     if (result.code === "queue_full") return 503;
     if (result.code === "timeout") return 504;
     if (result.code === "no_handler" || result.code === "not_ready") return 503;

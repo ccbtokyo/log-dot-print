@@ -14,6 +14,8 @@ export interface StoragePlugin {
   save(entry: LogEntry): Promise<void>;
   /** Save multiple log entries */
   saveBatch(entries: LogEntry[]): Promise<void>;
+  /** Mark a log entry as printed */
+  markPrinted(id: string): Promise<boolean>;
   /** Get log entries with optional filters */
   query(options: StorageQueryOptions): Promise<LogEntry[]>;
   /** Get total count */

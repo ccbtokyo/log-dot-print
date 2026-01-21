@@ -1,4 +1,4 @@
-import { appendFile, readFile, mkdir, stat } from "fs/promises";
+import { appendFile, readFile, mkdir, stat, writeFile } from "fs/promises";
 import { dirname } from "path";
 import type { LogEntry, StoragePlugin, StorageQueryOptions } from "@log-dot-print/core";
 
@@ -43,11 +43,80 @@ export class FileStorage implements StoragePlugin {
   }
 
   async save(entry: LogEntry): Promise<void> {
+    if (typeof entry.printed !== "boolean") {
+      entry.printed = false;
+    }
     this.writeBuffer.push(entry);
   }
 
   async saveBatch(entries: LogEntry[]): Promise<void> {
+    for (const entry of entries) {
+      if (typeof entry.printed !== "boolean") {
+        entry.printed = false;
+      }
+    }
     this.writeBuffer.push(...entries);
+  }
+
+  async markPrinted(id: string): Promise<boolean> {
+    const task = async (): Promise<boolean> => {
+      let updated = false;
+
+      for (const entry of this.writeBuffer) {
+        if (entry.id === id) {
+          entry.printed = true;
+          updated = true;
+        }
+      }
+
+      if (updated) {
+        await this.flush();
+        return true;
+      }
+
+      await this.flush();
+
+      let content = "";
+      try {
+        content = await readFile(this.filePath, "utf-8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          return false;
+        }
+        throw error;
+      }
+
+      const lines = content.trim().split("\n").filter(Boolean);
+      if (lines.length === 0) {
+        return false;
+      }
+
+      const updatedLines: string[] = [];
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line) as LogEntry;
+          if (entry.id === id) {
+            entry.printed = true;
+            updated = true;
+          } else if (typeof entry.printed !== "boolean") {
+            entry.printed = false;
+          }
+          updatedLines.push(JSON.stringify(entry));
+        } catch {
+          updatedLines.push(line);
+        }
+      }
+
+      if (updated) {
+        await writeFile(this.filePath, updatedLines.join("\n") + "\n", "utf-8");
+      }
+
+      return updated;
+    };
+
+    const next = this.flushQueue.then(() => task());
+    this.flushQueue = next.then(() => {}).catch(() => {});
+    return next;
   }
 
   private enqueueFlush(): Promise<void> {
@@ -78,7 +147,11 @@ export class FileStorage implements StoragePlugin {
       entries = lines
         .map((line) => {
           try {
-            return JSON.parse(line) as LogEntry;
+            const entry = JSON.parse(line) as LogEntry;
+            if (typeof entry.printed !== "boolean") {
+              entry.printed = false;
+            }
+            return entry;
           } catch {
             return null;
           }

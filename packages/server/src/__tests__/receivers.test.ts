@@ -34,6 +34,7 @@ const createConfig = (): SystemConfig => ({
     maxLineWidth: 80,
     includeTimestamp: true,
     includeSource: true,
+    includeLevel: false,
   },
 });
 
@@ -88,7 +89,7 @@ describe("Receivers queue-full handling", () => {
     await receiver.initialize(eventBus, config);
 
     eventBus.on("log:received", (entry, respond) => {
-      if (entry.message === "reject") {
+      if (entry.message === "reject" || entry.message === '"reject"') {
         respond?.({
           accepted: false,
           id: entry.id,
@@ -117,7 +118,7 @@ describe("Receivers queue-full handling", () => {
       const response = await fetch(`http://127.0.0.1:${port}/logs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify([{ message: "ok" }, { message: "reject" }]),
+        body: JSON.stringify(["ok", "reject"]),
       });
 
       const payload = (await response.json()) as LogResponse;

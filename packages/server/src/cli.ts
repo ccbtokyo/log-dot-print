@@ -111,11 +111,11 @@ API Endpoints:
 
 Log Entry Format:
   {
-    "source": "AI_Character_1",
-    "level": "thought",
+    "event": "AI_Character_1",
     "message": "I should move towards the player",
     "metadata": { "target": "player", "distance": 5.2 }
   }
+  (source is derived from request headers; level is not used)
 `);
 }
 

@@ -26,21 +26,20 @@ describe("parseLogEntry", () => {
     };
     const entry = parseLogEntry(data);
     expect(entry).not.toBeNull();
-    expect(entry!.source).toBe("AI_1");
-    expect(entry!.level).toBe("thought");
-    expect(entry!.message).toBe("Hello world");
+    expect(entry!.source).toBe("unknown");
+    expect(entry!.level).toBe("info");
+    expect(entry!.message).toBe(JSON.stringify(data));
+    expect(entry!.printed).toBe(false);
     expect(entry!.id).toBeDefined();
     expect(entry!.timestamp).toBeDefined();
   });
 
   test("returns null for invalid data", () => {
-    expect(parseLogEntry(null)).toBeNull();
+    expect(parseLogEntry(null)).not.toBeNull();
     expect(parseLogEntry(undefined)).toBeNull();
-    expect(parseLogEntry({})).toBeNull();
-    expect(parseLogEntry({ source: "AI" })).toBeNull(); // missing message
   });
 
-  test("uses provided id and timestamp", () => {
+  test("uses generated id and timestamp", () => {
     const data = {
       id: "custom-id",
       timestamp: "2025-01-01T00:00:00Z",
@@ -49,13 +48,51 @@ describe("parseLogEntry", () => {
       message: "Test",
     };
     const entry = parseLogEntry(data);
-    expect(entry!.id).toBe("custom-id");
-    expect(entry!.timestamp).toBe("2025-01-01T00:00:00Z");
+    expect(entry!.id).not.toBe("custom-id");
+    expect(entry!.timestamp).not.toBe("2025-01-01T00:00:00Z");
+    expect(entry!.printed).toBe(false);
   });
 
   test("defaults level to info", () => {
     const entry = parseLogEntry({ message: "Test" });
     expect(entry!.level).toBe("info");
+  });
+
+  test("uses provided source override", () => {
+    const entry = parseLogEntry({ hello: "world" }, { source: "10.0.0.1" });
+    expect(entry!.source).toBe("10.0.0.1");
+  });
+
+  test("accepts arbitrary objects without message", () => {
+    const entry = parseLogEntry({ foo: "bar", count: 2 });
+    expect(entry).not.toBeNull();
+    expect(entry!.message).toBe('{"foo":"bar","count":2}');
+  });
+
+  test("stringifies jsonable message values", () => {
+    const arrayEntry = parseLogEntry(["a", 1, true]);
+    expect(arrayEntry!.message).toBe('["a",1,true]');
+
+    const objectEntry = parseLogEntry({ foo: "bar", n: 2 });
+    expect(objectEntry!.message).toBe('{"foo":"bar","n":2}');
+
+    const nullEntry = parseLogEntry(null);
+    expect(nullEntry!.message).toBe("null");
+
+    const numberEntry = parseLogEntry(123);
+    expect(numberEntry!.message).toBe("123");
+
+    const boolEntry = parseLogEntry(false);
+    expect(boolEntry!.message).toBe("false");
+
+    const stringEntry = parseLogEntry("plain");
+    expect(stringEntry!.message).toBe('"plain"');
+  });
+
+  test("returns null for non-serializable values", () => {
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    expect(parseLogEntry(circular)).toBeNull();
   });
 });
 
@@ -103,6 +140,7 @@ describe("createPrintJob", () => {
       source: "AI_1",
       level: "action" as const,
       message: "Moving forward",
+      printed: false,
     };
     const job = createPrintJob(entry, "Formatted content");
 

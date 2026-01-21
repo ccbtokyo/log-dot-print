@@ -59,6 +59,7 @@ export const defaultConfig: AppConfig = {
     maxLineWidth: 80,
     includeTimestamp: true,
     includeSource: true,
+    includeLevel: false,
   },
   storage: {
     enabled: true,
@@ -236,6 +237,7 @@ export class LogPrintApp {
 
     this.eventBus.on("print:completed", (job: PrintJob) => {
       console.log(`[App] Completed job ${job.id}`);
+      this.markJobPrinted(job);
     });
 
     this.eventBus.on("print:failed", (job: PrintJob, error: Error) => {
@@ -287,6 +289,16 @@ export class LogPrintApp {
       id: entry.id,
       queueSize: this.printQueue.size,
     };
+  }
+
+  private markJobPrinted(job: PrintJob): void {
+    job.logEntry.printed = true;
+    if (!this.storage) {
+      return;
+    }
+    void this.storage.markPrinted(job.logEntry.id).catch((error) => {
+      console.error("[App] Failed to update printed status:", error);
+    });
   }
 
   private mergeConfig(defaults: AppConfig, overrides: DeepPartial<AppConfig>): AppConfig {

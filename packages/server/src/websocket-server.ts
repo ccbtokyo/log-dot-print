@@ -8,6 +8,7 @@ import type {
   TypedEventEmitter,
 } from "@log-dot-print/core";
 import { parseLogEntry } from "@log-dot-print/core";
+import { resolveRequestSource } from "./request-source.js";
 
 /**
  * WebSocket server for real-time log streaming from UE
@@ -19,6 +20,7 @@ export class WebSocketReceiver implements LogReceiverPlugin {
   private wss: WebSocketServer | null = null;
   private eventBus: TypedEventEmitter | null = null;
   private clients = new Set<WebSocket>();
+  private clientSources = new Map<WebSocket, string>();
 
   async initialize(eventBus: TypedEventEmitter, _config: SystemConfig): Promise<void> {
     this.eventBus = eventBus;
@@ -67,9 +69,11 @@ export class WebSocketReceiver implements LogReceiverPlugin {
       this.eventBus?.emit("system:error", error);
     });
 
-    this.wss.on("connection", (ws) => {
+    this.wss.on("connection", (ws, req) => {
       console.log("[WebSocketReceiver] Client connected");
       this.clients.add(ws);
+      const source = resolveRequestSource(req.headers, req.socket?.remoteAddress);
+      this.clientSources.set(ws, source);
 
       ws.on("message", (data) => {
         void this.handleMessage(ws, data.toString());
@@ -78,11 +82,13 @@ export class WebSocketReceiver implements LogReceiverPlugin {
       ws.on("close", () => {
         console.log("[WebSocketReceiver] Client disconnected");
         this.clients.delete(ws);
+        this.clientSources.delete(ws);
       });
 
       ws.on("error", (error) => {
         console.error("[WebSocketReceiver] Client error:", error);
         this.clients.delete(ws);
+        this.clientSources.delete(ws);
       });
 
       // Send welcome message
@@ -93,10 +99,11 @@ export class WebSocketReceiver implements LogReceiverPlugin {
   private async handleMessage(ws: WebSocket, message: string): Promise<void> {
     try {
       const data = JSON.parse(message);
+      const source = this.clientSources.get(ws) ?? "unknown";
 
       // Handle different message types
       if (data.type === "log") {
-        const entry = parseLogEntry(data.payload || data);
+        const entry = parseLogEntry(data.payload || data, { source });
         if (entry) {
           const result = await this.submitEntry(entry);
           this.sendSubmitResponse(ws, result);
@@ -119,7 +126,7 @@ export class WebSocketReceiver implements LogReceiverPlugin {
           queueSize?: number;
         }> = [];
         for (const item of entries) {
-          const entry = parseLogEntry(item);
+          const entry = parseLogEntry(item, { source });
           if (entry) {
             const result = await this.submitEntry(entry);
             if (result.accepted) {
@@ -151,7 +158,7 @@ export class WebSocketReceiver implements LogReceiverPlugin {
         ws.send(JSON.stringify({ type: "pong" }));
       } else {
         // Treat as direct log entry
-        const entry = parseLogEntry(data);
+        const entry = parseLogEntry(data, { source });
         if (entry) {
           const result = await this.submitEntry(entry);
           this.sendSubmitResponse(ws, result);

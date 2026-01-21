@@ -10,6 +10,7 @@ interface FormatterConfig {
   maxLineWidth: number;
   includeTimestamp: boolean;
   includeSource: boolean;
+  includeLevel: boolean;
 }
 
 /**
@@ -23,6 +24,7 @@ export class DefaultFormatter implements LogFormatterPlugin {
     maxLineWidth: 80,
     includeTimestamp: true,
     includeSource: true,
+    includeLevel: false,
   };
 
   async initialize(eventBus: TypedEventEmitter, config: SystemConfig): Promise<void> {
@@ -30,6 +32,7 @@ export class DefaultFormatter implements LogFormatterPlugin {
       maxLineWidth: config.format?.maxLineWidth ?? 80,
       includeTimestamp: config.format?.includeTimestamp ?? true,
       includeSource: config.format?.includeSource ?? true,
+      includeLevel: config.format?.includeLevel ?? false,
     };
   }
 
@@ -42,7 +45,7 @@ export class DefaultFormatter implements LogFormatterPlugin {
    */
   format(entry: LogEntry): string {
     const lines: string[] = [];
-    const { maxLineWidth, includeTimestamp, includeSource } = this.config;
+    const { maxLineWidth, includeTimestamp, includeSource, includeLevel } = this.config;
 
     // Build header line
     const headerParts: string[] = [];
@@ -55,11 +58,15 @@ export class DefaultFormatter implements LogFormatterPlugin {
       headerParts.push(`<${entry.source}>`);
     }
 
-    headerParts.push(`(${entry.level.toUpperCase()})`);
+    if (includeLevel) {
+      headerParts.push(`(${entry.level.toUpperCase()})`);
+    }
 
-    const header = headerParts.join(" ");
-    lines.push(header);
-    lines.push("-".repeat(Math.min(header.length, maxLineWidth)));
+    if (headerParts.length > 0) {
+      const header = headerParts.join(" ");
+      lines.push(header);
+      lines.push("-".repeat(Math.min(header.length, maxLineWidth)));
+    }
 
     // Wrap and add message
     const messageLines = wordWrap(entry.message, maxLineWidth);
