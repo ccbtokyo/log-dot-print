@@ -60,8 +60,7 @@ node packages/server/dist/cli.js --config config.json
 curl -X POST http://localhost:3000/log \
   -H "Content-Type: application/json" \
   -d '{
-    "source": "AI_Character_1",
-    "level": "thought",
+    "event": "AI_Character_1",
     "message": "I should approach the player"
   }'
 
@@ -69,8 +68,8 @@ curl -X POST http://localhost:3000/log \
 curl -X POST http://localhost:3000/logs \
   -H "Content-Type: application/json" \
   -d '[
-    {"source": "AI_1", "level": "action", "message": "Moving to target"},
-    {"source": "AI_2", "level": "emotion", "message": "Feeling curious"}
+    {"event": "AI_1", "message": "Moving to target"},
+    {"event": "AI_2", "message": "Feeling curious"}
   ]'
 
 # Health check
@@ -87,8 +86,7 @@ ws.onopen = () => {
   ws.send(JSON.stringify({
     type: 'log',
     payload: {
-      source: 'AI_Character_1',
-      level: 'thought',
+      event: 'AI_Character_1',
       message: 'The player is nearby'
     }
   }));
@@ -103,16 +101,10 @@ ws.onmessage = (event) => {
 ## Log Entry Format
 
 ```typescript
-interface LogEntry {
-  id?: string;          // Auto-generated if not provided
-  timestamp?: string;   // ISO 8601, auto-generated if not provided
-  source: string;       // AI character or system name
-  level: LogLevel;      // Log category
-  message: string;      // The log content
-  metadata?: object;    // Optional structured data
-}
-
-type LogLevel = 'debug' | 'info' | 'action' | 'thought' | 'emotion' | 'error';
+// Any JSON-serializable value is accepted (object/array/primitive/null).
+// The server prints JSON.stringify(payload) as-is.
+// Source is derived from request headers; level is not used.
+type LogPayload = unknown;
 ```
 
 ## Configuration
@@ -145,7 +137,8 @@ Create a `config.json` file:
   "format": {
     "maxLineWidth": 80,
     "includeTimestamp": true,
-    "includeSource": true
+    "includeSource": true,
+    "includeLevel": false
   }
 }
 ```

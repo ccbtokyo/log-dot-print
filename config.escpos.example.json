@@ -22,6 +22,7 @@
   "format": {
     "maxLineWidth": 48,
     "includeTimestamp": true,
-    "includeSource": true
+    "includeSource": true,
+    "includeLevel": false
   }
 }
