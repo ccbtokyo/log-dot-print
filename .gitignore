@@ -34,3 +34,10 @@ config.*.json
 
 # Test coverage
 coverage/
+
+# Runtime data
+data/
+
+# Tool internals
+.serena/
+.claude/homunculus/
