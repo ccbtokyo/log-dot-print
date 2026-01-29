@@ -1,5 +1,4 @@
 import { describe, test, expect } from "bun:test";
-import type { AddressInfo } from "net";
 import { TypedEventEmitter } from "../../core/index.js";
 import type { SystemConfig, LogEntry, LogSubmitResult } from "../../core/index.js";
 import { HttpReceiver } from "../http-server.js";
@@ -56,15 +55,8 @@ describe("Receivers queue-full handling", () => {
       });
     });
 
-    await receiver.start();
-    const port = (
-      (
-        receiver as unknown as { server: { address(): AddressInfo } }
-      ).server.address() as AddressInfo
-    ).port;
-
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/log`, {
+      const response = await receiver.getApp().request("http://localhost/log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: "hello" }),
@@ -107,15 +99,8 @@ describe("Receivers queue-full handling", () => {
       });
     });
 
-    await receiver.start();
-    const port = (
-      (
-        receiver as unknown as { server: { address(): AddressInfo } }
-      ).server.address() as AddressInfo
-    ).port;
-
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/logs`, {
+      const response = await receiver.getApp().request("http://localhost/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(["ok", "reject"]),

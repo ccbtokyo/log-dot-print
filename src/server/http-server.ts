@@ -1,4 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse } from "http";
+import { createServer as createNetServer } from "net";
+import type { AddressInfo } from "net";
 import type {
   LogReceiverPlugin,
   LogEntry,
@@ -88,6 +90,7 @@ export class HttpReceiver implements LogReceiverPlugin {
     }
 
     const { port, host } = this.config.server;
+    const listenPort = port === 0 ? await pickAvailablePort(host) : port;
 
     this.server = createServer((req, res) => {
       this.handleRequest(req, res);
@@ -95,8 +98,8 @@ export class HttpReceiver implements LogReceiverPlugin {
 
     return new Promise((resolve, reject) => {
       this.server!.on("error", reject);
-      this.server!.listen(port, host, () => {
-        console.log(`[HttpReceiver] Listening on http://${host}:${port}`);
+      this.server!.listen(listenPort, host, () => {
+        console.log(`[HttpReceiver] Listening on http://${host}:${listenPort}`);
         resolve();
       });
     });
@@ -450,4 +453,51 @@ export class HttpReceiver implements LogReceiverPlugin {
       }
     });
   }
+}
+
+async function pickAvailablePort(host: string): Promise<number> {
+  // NOTE: Bun v1.3.x on macOS cannot bind to port 0 (ephemeral). We emulate it by probing random ports.
+  const minPort = 20_000;
+  const maxPort = 60_000;
+  const maxAttempts = 50;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const candidate = minPort + Math.floor(Math.random() * (maxPort - minPort + 1));
+
+    const port = await new Promise<number | null>((resolve, reject) => {
+      const probe = createNetServer();
+
+      const finish = (result: number | null) => {
+        probe.removeAllListeners();
+        resolve(result);
+      };
+
+      probe.once("error", (error) => {
+        const err = error as NodeJS.ErrnoException;
+        if (err.code === "EADDRINUSE" || err.code === "EACCES") {
+          finish(null);
+          return;
+        }
+        reject(error);
+      });
+
+      probe.listen(candidate, host, () => {
+        const address = probe.address() as AddressInfo;
+        const actualPort = address.port;
+        probe.close((closeError) => {
+          if (closeError) {
+            reject(closeError);
+            return;
+          }
+          finish(actualPort);
+        });
+      });
+    });
+
+    if (port !== null) {
+      return port;
+    }
+  }
+
+  throw new Error(`Failed to pick available port on ${host} after ${maxAttempts} attempts`);
 }
