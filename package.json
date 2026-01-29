@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.2.0",
+    "@printers/printers": "^1.1.0",
     "escpos": "^3.0.0-alpha.6",
     "escpos-network": "^3.0.0-alpha.4",
     "escpos-usb": "^3.0.0-alpha.4",

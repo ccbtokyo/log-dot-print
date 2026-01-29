@@ -110,7 +110,23 @@ export interface PrinterStatus {
   info?: string;
 }
 
-export type PrinterType = "cups" | "escpos" | "serial" | "mock" | "custom";
+export type PrinterType = "cups" | "escpos" | "serial" | "mock" | "native" | "custom";
+
+/**
+ * Discovered printer from OS printer discovery
+ */
+export interface DiscoveredPrinter {
+  /** Printer name */
+  name: string;
+  /** Whether this is the default printer */
+  isDefault: boolean;
+  /** Printer status */
+  status?: "idle" | "printing" | "paused" | "error";
+  /** Whether the printer is ready to accept jobs */
+  ready?: boolean;
+  /** Printer description */
+  description?: string;
+}
 
 /**
  * Configuration for the log printer system

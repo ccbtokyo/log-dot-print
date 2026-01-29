@@ -3,9 +3,11 @@ export * from "./base-printer.js";
 export * from "./queue.js";
 export * from "./formatter.js";
 export * from "./registry.js";
+export * from "./discovery.js";
 
 // Printer implementations (side effects: register with registry)
 import "./mock.js";
 import "./cups.js";
 import "./escpos.js";
 import "./serial.js";
+import "./native.js";

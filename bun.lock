@@ -6,6 +6,7 @@
       "name": "log-dot-print",
       "dependencies": {
         "@hono/zod-openapi": "^1.2.0",
+        "@printers/printers": "^1.1.0",
         "escpos": "^3.0.0-alpha.6",
         "escpos-network": "^3.0.0-alpha.4",
         "escpos-usb": "^3.0.0-alpha.4",
@@ -99,6 +100,20 @@
     "@oxlint/win32-arm64": ["@oxlint/win32-arm64@1.42.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-lAPS2YAuu+qFqoTNPFcNsxXjwSV0M+dOgAzzVTAN7Yo2ifj+oLOx0GsntWoM78PvQWI7Q827ZxqtU2ImBmDapA=="],
 
     "@oxlint/win32-x64": ["@oxlint/win32-x64@1.42.0", "", { "os": "win32", "cpu": "x64" }, "sha512-3/KmyUOHNriL6rLpaFfm9RJxdhpXY2/Ehx9UuorJr2pUA+lrZL15FAEx/DOszYm5r10hfzj40+efAHcCilNvSQ=="],
+
+    "@printers/printers": ["@printers/printers@1.1.0", "", { "optionalDependencies": { "@printers/printers-darwin-arm64": "1.1.0", "@printers/printers-darwin-x64": "1.1.0", "@printers/printers-linux-arm64-gnu": "1.1.0", "@printers/printers-linux-x64-gnu": "1.1.0", "@printers/printers-win32-arm64-msvc": "1.1.0", "@printers/printers-win32-x64-msvc": "1.1.0" } }, "sha512-9ywezQgrlY4EUAUScHdXJVX8OLygjRXCFZocZkBwJUv2kBYNY4vVwPfXJ/nXEReTRPAGOatOaxU8qrYjr/W7lA=="],
+
+    "@printers/printers-darwin-arm64": ["@printers/printers-darwin-arm64@1.1.0", "", { "os": "darwin", "cpu": "arm64" }, "sha512-vXOuBfQsXkEMiDaHuURz2OSspxNPgF5kLsTnFSj+sqj2tNWQuU8LVxCpTzANgLlDoftvgsZlTirKZnPF8gK+4Q=="],
+
+    "@printers/printers-darwin-x64": ["@printers/printers-darwin-x64@1.1.0", "", { "os": "darwin", "cpu": "x64" }, "sha512-OzXwSICitEiBO02mRxE/wAByFeDBNgGwcQxTN9wF4dpW2RL+45u9xQnVYTU1vFyWJIlSkvQbi6c0O01SxqfTag=="],
+
+    "@printers/printers-linux-arm64-gnu": ["@printers/printers-linux-arm64-gnu@1.1.0", "", { "os": "linux", "cpu": "arm64" }, "sha512-uMZfeYgit3avz7mgpf4UGgkuoAFQL24r4rMITvGBcmuCbMaiQSlFqSX5QwMmmDAhVB6GmW4EXcf0azHAAHVIJA=="],
+
+    "@printers/printers-linux-x64-gnu": ["@printers/printers-linux-x64-gnu@1.1.0", "", { "os": "linux", "cpu": "x64" }, "sha512-tv9ZEQBnw0LYu5KDScOnefYqnb7uork48JmlBrXfQgQ/jvlKX9W3FvWb9fBSGafI+jqSvH706Hz6WdjajvQH1A=="],
+
+    "@printers/printers-win32-arm64-msvc": ["@printers/printers-win32-arm64-msvc@1.1.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-JuIcDl0UthNxmw+5Bqvw0mAW5POa9E3fgPRmX4FofP9P2KmSO3TMIRr0tar2p2Y2Q9iqmBy/EEAkiZsrq4V6lw=="],
+
+    "@printers/printers-win32-x64-msvc": ["@printers/printers-win32-x64-msvc@1.1.0", "", { "os": "win32", "cpu": "x64" }, "sha512-Vtu/d1CWBvJbIpRFU9tQ2FRXt3QfqVL6ruYvoK0Yo5RRojhl5EIPbKywWK0BRH9SPRjLvQkFNZv7Og9OFMfH1Q=="],
 
     "@serialport/binding-mock": ["@serialport/binding-mock@10.2.2", "", { "dependencies": { "@serialport/bindings-interface": "^1.2.1", "debug": "^4.3.3" } }, "sha512-HAFzGhk9OuFMpuor7aT5G1ChPgn5qSsklTFOTUX72Rl6p0xwcSVsRtG/xaGp6bxpN7fI9D/S8THLBWbBgS6ldw=="],
 
