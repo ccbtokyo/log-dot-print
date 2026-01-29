@@ -504,6 +504,25 @@ body {
   font-size: 0.75rem;
 }
 
+.history-cell-download {
+  text-align: center;
+  width: 50px;
+}
+
+.download-link {
+  text-decoration: none;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.download-link:hover {
+  opacity: 0.7;
+}
+
+.no-file {
+  color: var(--color-text-secondary);
+}
+
 /* Status Badges */
 .status-badge {
   display: inline-block;

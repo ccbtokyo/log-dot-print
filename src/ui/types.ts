@@ -57,6 +57,7 @@ export interface HistoryJobInfo {
   updatedAt: string;
   retryCount: number;
   error?: string;
+  hasFile?: boolean;
 }
 
 export interface PaginationInfo {

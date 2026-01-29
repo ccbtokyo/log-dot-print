@@ -29,6 +29,12 @@ const getStatusBadgeClass = (status: string): string => {
 };
 
 const renderRow = (job: HistoryJobInfo) => {
+  const downloadLink = job.hasFile
+    ? html`<a href="/api/history/${job.id}/download" class="download-link" download>📄</a>`
+    : html`
+        <span class="no-file">-</span>
+      `;
+
   return html`
     <tr>
       <td class="history-cell-time">${formatDate(job.createdAt)}</td>
@@ -39,6 +45,7 @@ const renderRow = (job: HistoryJobInfo) => {
       </td>
       <td class="history-cell-retry">${job.retryCount}</td>
       <td class="history-cell-error" title="${job.error ?? ""}">${job.error ? truncateMessage(job.error, 30) : "-"}</td>
+      <td class="history-cell-download">${downloadLink}</td>
     </tr>
   `;
 };
@@ -76,6 +83,7 @@ export const renderHistoryTable = (container: HTMLElement, state: HistoryState) 
           <th>Status</th>
           <th>Retries</th>
           <th>Error</th>
+          <th>File</th>
         </tr>
       </thead>
       <tbody>
