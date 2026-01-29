@@ -1,6 +1,24 @@
 import type { LogEntry, PrintJob, PrintJobStatus } from "./types.js";
 
 /**
+ * Query options for print jobs
+ */
+export interface PrintJobQueryOptions {
+  /** Filter by status (single or multiple) */
+  status?: PrintJobStatus | PrintJobStatus[];
+  /** Start timestamp (ISO 8601) */
+  from?: string;
+  /** End timestamp (ISO 8601) */
+  to?: string;
+  /** Limit results */
+  limit?: number;
+  /** Offset for pagination */
+  offset?: number;
+  /** Order by created_at */
+  order?: "asc" | "desc";
+}
+
+/**
  * Storage plugin interface for log persistence
  */
 export interface StoragePlugin {
@@ -66,4 +84,8 @@ export interface QueuePersistencePlugin {
   getPendingJobs(): Promise<PrintJob[]>;
   /** Get status history for a specific job */
   getJobStatusHistory(jobId: string): Promise<PrintStatusRecord[]>;
+  /** Query print jobs with filters */
+  queryPrintJobs(options: PrintJobQueryOptions): Promise<PrintJob[]>;
+  /** Count print jobs with filters */
+  countPrintJobs(options?: PrintJobQueryOptions): Promise<number>;
 }

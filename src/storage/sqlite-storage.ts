@@ -16,6 +16,7 @@ import type {
   StorageQueryOptions,
   QueuePersistencePlugin,
   PrintStatusRecord,
+  PrintJobQueryOptions,
 } from "../core/index.js";
 import {
   CREATE_TABLES_SQL,
@@ -28,6 +29,8 @@ import {
   GET_STATUS_HISTORY_SQL,
   QUERY_LOG_ENTRIES_SQL,
   COUNT_LOG_ENTRIES_SQL,
+  QUERY_PRINT_JOBS_SQL,
+  COUNT_PRINT_JOBS_SQL,
 } from "./schema.js";
 
 interface LogEntryRow {
@@ -56,6 +59,10 @@ interface PendingJobRow {
   le_message: string;
   le_printed: number;
   le_metadata: string | null;
+}
+
+interface PrintJobRow extends PendingJobRow {
+  updated_at: string;
 }
 
 interface StatusHistoryRow {
@@ -267,6 +274,69 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
       error: row.error ?? undefined,
       createdAt: row.created_at,
     }));
+  }
+
+  async queryPrintJobs(options: PrintJobQueryOptions): Promise<PrintJob[]> {
+    this.ensureDb();
+    let sql = QUERY_PRINT_JOBS_SQL;
+    const params: (string | number)[] = [];
+
+    if (options.status !== undefined) {
+      const statuses = Array.isArray(options.status) ? options.status : [options.status];
+      const placeholders = statuses.map(() => "?").join(", ");
+      sql += ` AND pj.status IN (${placeholders})`;
+      params.push(...statuses);
+    }
+    if (options.from) {
+      sql += " AND pj.created_at >= ?";
+      params.push(options.from);
+    }
+    if (options.to) {
+      sql += " AND pj.created_at <= ?";
+      params.push(options.to);
+    }
+
+    sql += ` ORDER BY pj.created_at ${options.order === "asc" ? "ASC" : "DESC"}`;
+
+    if (options.limit !== undefined) {
+      sql += " LIMIT ?";
+      params.push(options.limit);
+    }
+    if (options.offset !== undefined) {
+      sql += " OFFSET ?";
+      params.push(options.offset);
+    }
+
+    const stmt = this.db!.prepare(sql);
+    const rows = stmt.all(...params) as PrintJobRow[];
+    return rows.map((row) => this.rowToPrintJob(row));
+  }
+
+  async countPrintJobs(options?: PrintJobQueryOptions): Promise<number> {
+    this.ensureDb();
+    let sql = COUNT_PRINT_JOBS_SQL;
+    const params: (string | number)[] = [];
+
+    if (options) {
+      if (options.status !== undefined) {
+        const statuses = Array.isArray(options.status) ? options.status : [options.status];
+        const placeholders = statuses.map(() => "?").join(", ");
+        sql += ` AND status IN (${placeholders})`;
+        params.push(...statuses);
+      }
+      if (options.from) {
+        sql += " AND created_at >= ?";
+        params.push(options.from);
+      }
+      if (options.to) {
+        sql += " AND created_at <= ?";
+        params.push(options.to);
+      }
+    }
+
+    const stmt = this.db!.prepare(sql);
+    const row = stmt.get(...params) as CountRow;
+    return row.count;
   }
 
   private ensureDb(): void {

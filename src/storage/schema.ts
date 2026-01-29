@@ -142,3 +142,35 @@ WHERE 1=1
 export const COUNT_LOG_ENTRIES_SQL = `
 SELECT COUNT(*) as count FROM log_entries WHERE 1=1
 `;
+
+/**
+ * SQL for querying print jobs with filters (base query)
+ */
+export const QUERY_PRINT_JOBS_SQL = `
+SELECT
+  pj.id,
+  pj.log_entry_id,
+  pj.formatted_content,
+  pj.created_at,
+  pj.status,
+  pj.retry_count,
+  pj.error,
+  pj.updated_at,
+  le.id as le_id,
+  le.timestamp as le_timestamp,
+  le.level as le_level,
+  le.source as le_source,
+  le.message as le_message,
+  le.printed as le_printed,
+  le.metadata as le_metadata
+FROM print_jobs pj
+JOIN log_entries le ON pj.log_entry_id = le.id
+WHERE 1=1
+`;
+
+/**
+ * SQL for counting print jobs with filters (base query)
+ */
+export const COUNT_PRINT_JOBS_SQL = `
+SELECT COUNT(*) as count FROM print_jobs WHERE 1=1
+`;
