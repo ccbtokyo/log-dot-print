@@ -114,6 +114,7 @@ export class QueueController {
     // GET /api/history - Get job history (completed/failed jobs)
     this.app.get("/api/history", async (c) => {
       if (!this.storage) {
+        console.warn("[QueueController] Storage not configured for /api/history");
         return c.json({ error: "Storage not configured" }, 503);
       }
 
@@ -132,10 +133,16 @@ export class QueueController {
         }
       }
 
+      console.log(
+        `[QueueController] History query: status=${status.join(",")}, offset=${offset}, limit=${limit}`,
+      );
+
       const [jobs, total] = await Promise.all([
         this.storage.queryPrintJobs({ status, limit, offset, order: "desc" }),
         this.storage.countPrintJobs({ status }),
       ]);
+
+      console.log(`[QueueController] History result: ${jobs.length} jobs, total=${total}`);
 
       const totalPages = Math.ceil(total / limit);
 
@@ -186,8 +193,15 @@ export class QueueController {
 
     // GET /api/printers - List available OS printers (native mode)
     this.app.get("/api/printers", async (c) => {
-      const printers = await printerDiscovery.listPrinters();
-      return c.json({ printers });
+      try {
+        console.log("[QueueController] Listing printers...");
+        const printers = await printerDiscovery.listPrinters();
+        console.log(`[QueueController] Found ${printers.length} printers`);
+        return c.json({ printers });
+      } catch (error) {
+        console.error("[QueueController] Failed to list printers:", error);
+        return c.json({ error: "Failed to list printers", details: String(error) }, 500);
+      }
     });
   }
 

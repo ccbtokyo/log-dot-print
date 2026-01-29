@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsgo && bun run build:ui",
     "build:ui": "bun build src/ui/main.ts --outdir=dist/ui --format=esm && cp src/ui/index.html src/ui/styles/*.css dist/ui/",
-    "dev": "bun run build:ui && (bun run dev:ui & bun --watch src/cli.ts)",
+    "dev": "bun run build:ui && (bun run dev:ui & bun --hot src/cli.ts)",
     "dev:ui": "bun build src/ui/main.ts --outdir=dist/ui --format=esm --watch",
     "start": "node dist/cli.js",
     "test": "bun test",

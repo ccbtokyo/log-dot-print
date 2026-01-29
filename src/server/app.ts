@@ -286,6 +286,8 @@ export class LogPrintApp {
     const url = new URL(request.url);
     const pathname = url.pathname;
 
+    console.log(`[App] HTTP ${request.method} ${pathname}`);
+
     // Try static middleware first (for /ui paths)
     if (this.staticMiddleware && pathname.startsWith("/ui")) {
       const response = await this.staticMiddleware.handleBun(request);
@@ -294,7 +296,10 @@ export class LogPrintApp {
 
     // Try queue controller API routes
     if (this.queueController && pathname.startsWith("/api/")) {
-      return this.queueController.getApp().fetch(request);
+      console.log(`[App] Routing to QueueController: ${pathname}`);
+      const response = await this.queueController.getApp().fetch(request);
+      console.log(`[App] QueueController response: ${response.status}`);
+      return response;
     }
 
     // Fall through to HTTP receiver for other routes
