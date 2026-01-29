@@ -53,11 +53,17 @@ async function main(): Promise<void> {
   // Load config file
   const fileConfig = await loadConfig(configPath);
 
-  // Build config with CLI overrides
+  // Read from environment variables (CLI args take precedence)
+  const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : undefined;
+  const envHost = process.env.HOST;
+
+  // Build config with CLI overrides (priority: CLI > env > file config)
   const config: DeepPartial<SystemConfig> = {
     ...fileConfig,
     server: {
       ...fileConfig.server,
+      ...(envPort && { port: envPort }),
+      ...(envHost && { host: envHost }),
       ...(port && { port }),
       ...(host && { host }),
     },
@@ -99,9 +105,14 @@ Options:
   --printer <type>       Printer type (mock, cups, escpos, serial)
   --help                 Show this help message
 
+Environment Variables:
+  PORT                   Server port (overridden by -p/--port)
+  HOST                   Server host (overridden by -h/--host)
+
 Example:
   log-dot-print --port 8080 --printer mock
   log-dot-print -c config.json
+  PORT=8080 log-dot-print --printer mock
 
 API Endpoints:
   POST /log              Submit a single log entry
