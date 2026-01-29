@@ -2,7 +2,7 @@
  * REST API client for queue management
  */
 
-import type { QueueState, PrintJob, JobPreview } from "../types.js";
+import type { QueueState, PrintJob, JobPreview, HistoryResponse } from "../types.js";
 
 export class ApiClient {
   private baseUrl: string;
@@ -86,5 +86,22 @@ export class ApiClient {
     }
     const result = await response.json();
     return result.newPosition;
+  }
+
+  async getHistory(options: { page?: number; limit?: number } = {}): Promise<HistoryResponse> {
+    const params = new URLSearchParams();
+    if (options.page !== undefined) {
+      params.set("page", String(options.page));
+    }
+    if (options.limit !== undefined) {
+      params.set("limit", String(options.limit));
+    }
+    const query = params.toString();
+    const url = `${this.baseUrl}/api/history${query ? `?${query}` : ""}`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to get history: ${response.status}`);
+    }
+    return response.json();
   }
 }

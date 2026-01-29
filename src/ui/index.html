@@ -13,9 +13,16 @@
         <h1>Log-Dot-Print Queue Manager</h1>
       </header>
       <div id="status-bar"></div>
+      <div id="tabs"></div>
       <div id="controls"></div>
       <div id="error-banner"></div>
-      <main id="queue-list" class="main"></main>
+      <main id="queue-view" class="main">
+        <div id="queue-list"></div>
+      </main>
+      <main id="history-view" class="main" style="display: none">
+        <div id="history-table"></div>
+        <div id="pagination"></div>
+      </main>
       <div id="preview-modal"></div>
     </div>
     <script type="module" src="main.js"></script>

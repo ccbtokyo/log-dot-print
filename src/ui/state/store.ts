@@ -2,7 +2,7 @@
  * Simple reactive store for UI state
  */
 
-import type { QueueState, QueueJobInfo } from "../types.js";
+import type { QueueState, QueueJobInfo, TabType, HistoryState, PaginationInfo } from "../types.js";
 import type { ConnectionState } from "../services/ws-client.js";
 
 export interface AppState {
@@ -10,6 +10,8 @@ export interface AppState {
   connection: ConnectionState;
   selectedJobId: string | null;
   error: string | null;
+  activeTab: TabType;
+  history: HistoryState;
 }
 
 export type StateListener = (state: AppState) => void;
@@ -21,12 +23,21 @@ const initialQueueState: QueueState = {
   totalSize: 0,
 };
 
+const initialHistoryState: HistoryState = {
+  jobs: [],
+  pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+  isLoading: false,
+  error: null,
+};
+
 export class Store {
   private state: AppState = {
     queue: initialQueueState,
     connection: "disconnected",
     selectedJobId: null,
     error: null,
+    activeTab: "queue",
+    history: initialHistoryState,
   };
 
   private listeners = new Set<StateListener>();
@@ -64,6 +75,40 @@ export class Store {
 
   clearError(): void {
     this.setError(null);
+  }
+
+  setActiveTab(tab: TabType): void {
+    this.state = { ...this.state, activeTab: tab };
+    this.notify();
+  }
+
+  setHistoryState(history: HistoryState): void {
+    this.state = { ...this.state, history };
+    this.notify();
+  }
+
+  setHistoryLoading(isLoading: boolean): void {
+    this.state = {
+      ...this.state,
+      history: { ...this.state.history, isLoading },
+    };
+    this.notify();
+  }
+
+  setHistoryError(error: string | null): void {
+    this.state = {
+      ...this.state,
+      history: { ...this.state.history, error, isLoading: false },
+    };
+    this.notify();
+  }
+
+  updateHistoryPagination(pagination: PaginationInfo): void {
+    this.state = {
+      ...this.state,
+      history: { ...this.state.history, pagination },
+    };
+    this.notify();
   }
 
   getSelectedJob(): QueueJobInfo | null {

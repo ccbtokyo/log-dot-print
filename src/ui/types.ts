@@ -4,6 +4,8 @@
 
 export type PrintJobStatus = "pending" | "printing" | "completed" | "failed";
 
+export type TabType = "queue" | "history";
+
 export interface QueueJobInfo {
   id: string;
   logEntryId: string;
@@ -43,6 +45,37 @@ export interface PrintJob {
 export interface JobPreview {
   id: string;
   formattedContent: string;
+}
+
+export interface HistoryJobInfo {
+  id: string;
+  logEntryId: string;
+  source: string;
+  messagePreview: string;
+  status: PrintJobStatus;
+  createdAt: string;
+  updatedAt: string;
+  retryCount: number;
+  error?: string;
+}
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface HistoryResponse {
+  jobs: HistoryJobInfo[];
+  pagination: PaginationInfo;
+}
+
+export interface HistoryState {
+  jobs: HistoryJobInfo[];
+  pagination: PaginationInfo;
+  isLoading: boolean;
+  error: string | null;
 }
 
 /**
