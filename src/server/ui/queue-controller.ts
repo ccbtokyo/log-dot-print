@@ -5,7 +5,7 @@
  */
 
 import { Hono } from "hono";
-import type { PrintJob, TypedEventEmitter } from "../../core/index.js";
+import type { PrintJob, TypedEventEmitter, QueuePersistencePlugin } from "../../core/index.js";
 import type { PrintQueue } from "../../printers/index.js";
 import type { LogFormatterPlugin } from "../../core/index.js";
 
@@ -17,11 +17,18 @@ export class QueueController {
   private printQueue: PrintQueue;
   private eventBus: TypedEventEmitter;
   private formatter?: LogFormatterPlugin;
+  private storage?: QueuePersistencePlugin;
 
-  constructor(printQueue: PrintQueue, eventBus: TypedEventEmitter, formatter?: LogFormatterPlugin) {
+  constructor(
+    printQueue: PrintQueue,
+    eventBus: TypedEventEmitter,
+    formatter?: LogFormatterPlugin,
+    storage?: QueuePersistencePlugin,
+  ) {
     this.printQueue = printQueue;
     this.eventBus = eventBus;
     this.formatter = formatter;
+    this.storage = storage;
     this.app = new Hono();
     this.configureRoutes();
   }
@@ -100,6 +107,45 @@ export class QueueController {
       }
       return c.json({ success: true, newPosition });
     });
+
+    // GET /api/history - Get job history (completed/failed jobs)
+    this.app.get("/api/history", async (c) => {
+      if (!this.storage) {
+        return c.json({ error: "Storage not configured" }, 503);
+      }
+
+      const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") ?? "20", 10)));
+      const offset = (page - 1) * limit;
+
+      const statusFilter = c.req.query("status");
+      let status: ("completed" | "failed")[] = ["completed", "failed"];
+      if (statusFilter) {
+        const requestedStatuses = statusFilter
+          .split(",")
+          .filter((s) => s === "completed" || s === "failed");
+        if (requestedStatuses.length > 0) {
+          status = requestedStatuses as ("completed" | "failed")[];
+        }
+      }
+
+      const [jobs, total] = await Promise.all([
+        this.storage.queryPrintJobs({ status, limit, offset, order: "desc" }),
+        this.storage.countPrintJobs({ status }),
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      return c.json({
+        jobs: jobs.map((job) => this.serializeHistoryJob(job)),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+      });
+    });
   }
 
   private serializePrintJob(job: PrintJob): object {
@@ -109,6 +155,25 @@ export class QueueController {
       formattedContent: job.formattedContent,
       createdAt: job.createdAt.toISOString(),
       status: job.status,
+      retryCount: job.retryCount,
+      error: job.error,
+    };
+  }
+
+  private serializeHistoryJob(job: PrintJob): object {
+    const messagePreview =
+      job.logEntry.message.length > 100
+        ? job.logEntry.message.slice(0, 100) + "..."
+        : job.logEntry.message;
+
+    return {
+      id: job.id,
+      logEntryId: job.logEntry.id,
+      source: job.logEntry.source,
+      messagePreview,
+      status: job.status,
+      createdAt: job.createdAt.toISOString(),
+      updatedAt: job.createdAt.toISOString(), // Use createdAt as updatedAt is not in PrintJob type
       retryCount: job.retryCount,
       error: job.error,
     };
