@@ -23,26 +23,6 @@ export function createPrintJob(entry: LogEntry, formattedContent: string): Print
 }
 
 /**
- * Validate a log entry
- */
-export function validateLogEntry(data: unknown): data is LogEntry {
-  if (typeof data !== "object" || data === null) {
-    return false;
-  }
-
-  const entry = data as Record<string, unknown>;
-
-  return (
-    typeof entry.id === "string" &&
-    typeof entry.timestamp === "string" &&
-    typeof entry.level === "string" &&
-    typeof entry.source === "string" &&
-    typeof entry.message === "string" &&
-    typeof entry.printed === "boolean"
-  );
-}
-
-/**
  * Parse a log entry from JSON, assigning ID if missing
  */
 export interface ParseLogEntryOptions {
