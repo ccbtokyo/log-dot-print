@@ -1,4 +1,3 @@
-import { connect } from "net";
 import { resolve } from "path";
 import type { Server } from "bun";
 import type {
@@ -8,6 +7,7 @@ import type {
   PrintJob,
   LogSubmitResult,
   StoragePlugin,
+  QueuePersistencePlugin,
 } from "../core/index.js";
 import { TypedEventEmitter, createPrintJob } from "../core/index.js";
 import { PrintQueue, DefaultFormatter, printerRegistry } from "../printers/index.js";
@@ -91,6 +91,7 @@ export class LogPrintApp {
   private formatter: DefaultFormatter;
   private printer: PrinterPlugin | null = null;
   private storage: StoragePlugin | null = null;
+  private queueStorage: QueuePersistencePlugin | null = null;
   private queuePersistenceHandler: QueuePersistenceHandler | null = null;
   private bunServer: Server<import("./bun-server.js").WebSocketData> | null = null;
   private queueController: QueueController | null = null;
@@ -118,6 +119,7 @@ export class LogPrintApp {
         const sqliteStorage = new SqliteStorage(this.config.storage.path);
         await sqliteStorage.initialize();
         this.storage = sqliteStorage;
+        this.queueStorage = sqliteStorage;
 
         // Setup queue persistence handler
         this.queuePersistenceHandler = new QueuePersistenceHandler(sqliteStorage, this.eventBus);
@@ -161,7 +163,12 @@ export class LogPrintApp {
 
     // Initialize UI components if enabled
     if (this.config.ui?.enabled) {
-      this.queueController = new QueueController(this.printQueue, this.eventBus, this.formatter);
+      this.queueController = new QueueController(
+        this.printQueue,
+        this.eventBus,
+        this.formatter,
+        this.queueStorage ?? undefined,
+      );
       this.uiWebSocketHandler = new UIWebSocketHandler(this.printQueue, this.eventBus);
       this.uiWebSocketHandler.initialize();
       // Default static path is relative to project root (packages/ui/dist)
@@ -286,7 +293,7 @@ export class LogPrintApp {
     }
 
     // Try queue controller API routes
-    if (this.queueController && pathname.startsWith("/api/queue")) {
+    if (this.queueController && pathname.startsWith("/api/")) {
       return this.queueController.getApp().fetch(request);
     }
 
@@ -412,25 +419,14 @@ export class LogPrintApp {
     const maxPort = 65535;
 
     if (startPort === 0) {
-      this.bunServer = createBunServer({
-        port: 0,
-        hostname: host,
-        fetch: (request) => this.handleHttpRequest(request),
-        wsHandlers,
-      });
-      return this.bunServer.port ?? 0;
+      // Bun v1.3.x on macOS cannot bind to port 0 (ephemeral). Start from a random high port instead.
+      const minPort = 20_000;
+      const maxRandomPort = 60_000;
+      const randomStart = minPort + Math.floor(Math.random() * (maxRandomPort - minPort + 1));
+      return this.listenWithPortFallback(host, randomStart, wsHandlers);
     }
 
     for (let current = startPort; current <= maxPort; current++) {
-      if (await this.isPortInUse(host, current)) {
-        const next = current + 1;
-        if (next > maxPort) {
-          break;
-        }
-        console.warn(`[App] Port ${current} is in use, trying ${next}...`);
-        continue;
-      }
-
       try {
         this.bunServer = createBunServer({
           port: current,
@@ -457,43 +453,5 @@ export class LogPrintApp {
     }
 
     throw new Error(`No available ports starting from ${startPort}`);
-  }
-
-  private async isPortInUse(host: string, port: number): Promise<boolean> {
-    if (port === 0) {
-      return false;
-    }
-
-    const targets = this.getProbeHosts(host);
-    for (const target of targets) {
-      const inUse = await this.canConnect(target, port);
-      if (inUse) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private getProbeHosts(host: string): string[] {
-    if (host === "0.0.0.0" || host === "::" || host.trim() === "") {
-      return ["127.0.0.1", "::1"];
-    }
-    return [host];
-  }
-
-  private canConnect(host: string, port: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      const socket = connect({ host, port });
-      const finish = (inUse: boolean) => {
-        socket.removeAllListeners();
-        socket.destroy();
-        resolve(inUse);
-      };
-
-      socket.setTimeout(200);
-      socket.once("connect", () => finish(true));
-      socket.once("timeout", () => finish(false));
-      socket.once("error", () => finish(false));
-    });
   }
 }
