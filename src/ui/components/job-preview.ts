@@ -66,7 +66,11 @@ export const renderJobPreview = (
                   `
                 : previewState.error
                   ? html`<div class="error">${previewState.error}</div>`
-                  : html`<pre>${previewState.preview?.formattedContent ?? "No content"}</pre>`
+                  : previewState.preview && previewState.preview.id !== job.id
+                    ? html`
+                        <div class="loading">Loading...</div>
+                      `
+                    : html`<pre>${previewState.preview?.formattedContent ?? "No content"}</pre>`
             }
           </div>
         </div>

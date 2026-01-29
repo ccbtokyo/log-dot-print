@@ -10,10 +10,14 @@ import { renderStatusBar } from "./components/status-bar.js";
 import { renderControls, type ControlsHandlers } from "./components/controls.js";
 import { renderQueueList } from "./components/queue-list.js";
 import { renderJobPreview, type PreviewState } from "./components/job-preview.js";
-import type { ServerMessage } from "./types.js";
+import { renderTabs, type TabsHandlers } from "./components/tabs.js";
+import { renderHistoryTable } from "./components/history-table.js";
+import { renderPagination, type PaginationHandlers } from "./components/pagination.js";
+import type { ServerMessage, TabType } from "./types.js";
 
 // Initialize clients
-const wsUrl = `ws://${window.location.host}/ws/ui`;
+const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+const wsUrl = `${wsProtocol}//${window.location.host}/ws/ui`;
 const wsClient = new WSClient({ url: wsUrl });
 const apiClient = new ApiClient();
 
@@ -24,12 +28,40 @@ let previewState: PreviewState = {
   error: null,
 };
 
+// Request IDs for race condition prevention
+let previewRequestId = 0;
+let historyRequestId = 0;
+
+// Helper function for DOM element retrieval with null check
+function getElement(id: string): HTMLElement {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Required DOM element not found: #${id}`);
+  }
+  return element;
+}
+
 // Get DOM elements
-const statusBarEl = document.getElementById("status-bar")!;
-const controlsEl = document.getElementById("controls")!;
-const errorBannerEl = document.getElementById("error-banner")!;
-const queueListEl = document.getElementById("queue-list")!;
-const previewModalEl = document.getElementById("preview-modal")!;
+const statusBarEl = getElement("status-bar");
+const tabsEl = getElement("tabs");
+const controlsEl = getElement("controls");
+const errorBannerEl = getElement("error-banner");
+const queueViewEl = getElement("queue-view");
+const queueListEl = getElement("queue-list");
+const historyViewEl = getElement("history-view");
+const historyTableEl = getElement("history-table");
+const paginationEl = getElement("pagination");
+const previewModalEl = getElement("preview-modal");
+
+// Tab handlers
+const tabHandlers: TabsHandlers = {
+  onTabChange: (tab: TabType) => {
+    store.setActiveTab(tab);
+    if (tab === "history") {
+      loadHistory(1);
+    }
+  },
+};
 
 // Control handlers
 const controlHandlers: ControlsHandlers = {
@@ -79,15 +111,45 @@ const previewHandlers = {
   },
 };
 
+// Pagination handlers
+const paginationHandlers: PaginationHandlers = {
+  onPageChange: (page: number) => {
+    loadHistory(page);
+  },
+};
+
+// Load history data
+async function loadHistory(page: number): Promise<void> {
+  const requestId = ++historyRequestId;
+  store.setHistoryLoading(true);
+
+  try {
+    const response = await apiClient.getHistory({ page, limit: 20 });
+    if (requestId !== historyRequestId) return; // Stale request
+    store.setHistoryState({
+      jobs: response.jobs,
+      pagination: response.pagination,
+      isLoading: false,
+      error: null,
+    });
+  } catch (error) {
+    if (requestId !== historyRequestId) return; // Stale request
+    store.setHistoryError(error instanceof Error ? error.message : "Failed to load history");
+  }
+}
+
 // Load preview for selected job
 async function loadPreview(jobId: string): Promise<void> {
+  const requestId = ++previewRequestId;
   previewState = { isLoading: true, preview: null, error: null };
   renderPreview();
 
   try {
     const preview = await apiClient.getJobPreview(jobId);
+    if (requestId !== previewRequestId) return; // Stale request
     previewState = { isLoading: false, preview, error: null };
   } catch (error) {
+    if (requestId !== previewRequestId) return; // Stale request
     previewState = {
       isLoading: false,
       preview: null,
@@ -124,9 +186,23 @@ function renderPreview(): void {
 // Main render function
 function renderApp(state: AppState): void {
   renderStatusBar(statusBarEl, state);
-  renderControls(controlsEl, state, controlHandlers);
+  renderTabs(tabsEl, state.activeTab, tabHandlers);
   renderErrorBanner(state.error);
-  renderQueueList(queueListEl, state, jobCardHandlers);
+
+  // Switch views based on active tab
+  if (state.activeTab === "queue") {
+    queueViewEl.style.display = "";
+    historyViewEl.style.display = "none";
+    renderControls(controlsEl, state, controlHandlers);
+    renderQueueList(queueListEl, state, jobCardHandlers);
+  } else {
+    queueViewEl.style.display = "none";
+    historyViewEl.style.display = "";
+    render(nothing, controlsEl);
+    renderHistoryTable(historyTableEl, state.history);
+    renderPagination(paginationEl, state.history.pagination, paginationHandlers);
+  }
+
   renderPreview();
 }
 

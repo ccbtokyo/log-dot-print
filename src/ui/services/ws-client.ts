@@ -24,6 +24,7 @@ export class WSClient {
   private messageHandlers = new Set<MessageHandler>();
   private connectionHandlers = new Set<ConnectionHandler>();
   private state: ConnectionState = "disconnected";
+  private explicitDisconnect = false;
 
   constructor(options: WSClientOptions) {
     this.options = {
@@ -34,10 +35,11 @@ export class WSClient {
   }
 
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
+    this.explicitDisconnect = false;
     this.updateState("connecting");
     this.ws = new WebSocket(this.options.url);
 
@@ -70,6 +72,7 @@ export class WSClient {
   }
 
   disconnect(): void {
+    this.explicitDisconnect = true;
     this.stopReconnect();
     this.stopPing();
 
@@ -152,6 +155,12 @@ export class WSClient {
 
   private handleDisconnect(): void {
     this.ws = null;
+
+    if (this.explicitDisconnect) {
+      this.explicitDisconnect = false;
+      this.updateState("disconnected");
+      return;
+    }
 
     if (this.reconnectAttempts < this.options.maxReconnectAttempts) {
       this.updateState("reconnecting");
