@@ -1,0 +1,78 @@
+name: Build
+
+on:
+  push:
+    branches: [main, devel]
+  pull_request:
+    branches: [main, devel]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+      - run: bun test
+      - run: bun run build
+      - run: bun run lint
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: bun-darwin-arm64
+            artifact: log-dot-print-macos-arm64
+          - os: macos-13
+            target: bun-darwin-x64
+            artifact: log-dot-print-macos-x64
+          - os: windows-latest
+            target: bun-windows-x64
+            artifact: log-dot-print-windows-x64.exe
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build executable
+        run: bun build --compile --minify --sourcemap --target=${{ matrix.target }} src/cli.ts --outfile=dist/${{ matrix.artifact }}
+
+      - name: Copy UI assets
+        shell: bash
+        run: |
+          bun run build:ui
+          cp -r dist/ui dist/ui-assets
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
+      - name: Upload UI assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-assets-${{ matrix.os }}
+          path: dist/ui-assets
+          if-no-files-found: error
