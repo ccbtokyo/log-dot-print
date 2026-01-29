@@ -140,20 +140,30 @@ async function loadHistory(page: number): Promise<void> {
 
 // Load preview for selected job
 async function loadPreview(jobId: string): Promise<void> {
+  console.log("[Preview] Loading preview for job:", jobId);
   const requestId = ++previewRequestId;
   previewState = { isLoading: true, preview: null, error: null };
   renderPreview();
 
   try {
     const preview = await apiClient.getJobPreview(jobId);
-    if (requestId !== previewRequestId) return; // Stale request
+    if (requestId !== previewRequestId) {
+      console.log("[Preview] Stale request ignored:", requestId);
+      return;
+    }
+    console.log("[Preview] Preview loaded successfully:", preview);
     previewState = { isLoading: false, preview, error: null };
   } catch (error) {
-    if (requestId !== previewRequestId) return; // Stale request
+    if (requestId !== previewRequestId) {
+      console.log("[Preview] Stale request ignored:", requestId);
+      return;
+    }
+    const errorMessage = error instanceof Error ? error.message : "Failed to load preview";
+    console.error("[Preview] Failed to load preview:", errorMessage, error);
     previewState = {
       isLoading: false,
       preview: null,
-      error: error instanceof Error ? error.message : "Failed to load preview",
+      error: errorMessage,
     };
   }
 

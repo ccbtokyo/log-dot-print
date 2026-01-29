@@ -1,5 +1,5 @@
 /**
- * Job preview modal component (WIP - basic implementation)
+ * Job preview modal component
  */
 
 import { html, render, nothing } from "lit-html";
