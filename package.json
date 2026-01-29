@@ -1,13 +1,13 @@
 {
   "name": "log-dot-print",
   "version": "1.0.0",
-  "type": "module",
-  "description": "AI Log Printer System for Art Installations",
   "private": true,
-  "main": "./dist/cli.js",
+  "description": "AI Log Printer System for Art Installations",
   "bin": {
     "log-dot-print": "./dist/cli.js"
   },
+  "type": "module",
+  "main": "./dist/cli.js",
   "scripts": {
     "build": "tsgo && bun run build:ui",
     "build:ui": "bun build src/ui/main.ts --outdir=dist/ui --format=esm && cp src/ui/index.html src/ui/styles/*.css dist/ui/",
@@ -16,7 +16,10 @@
     "start": "node dist/cli.js",
     "test": "bun test",
     "lint": "oxlint src",
-    "format": "bunx oxfmt src"
+    "lint:fix": "oxlint --fix src",
+    "format": "oxfmt --write src",
+    "format:check": "oxfmt --check src",
+    "prepare": "husky"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.2.0",
@@ -34,8 +37,20 @@
     "@types/node": "^25.0.9",
     "@types/serialport": "^8.0.0",
     "@typescript/native-preview": "^7.0.0-dev.20260128.1",
-    "oxlint": "^1.39.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "oxfmt": "^0.27.0",
+    "oxlint": "^1.42.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "oxlint --fix",
+      "oxfmt --write"
+    ],
+    "*.{json,md,html,css}": [
+      "oxfmt --write"
+    ]
   }
 }
