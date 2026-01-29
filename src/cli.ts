@@ -56,6 +56,8 @@ async function main(): Promise<void> {
   // Read from environment variables (CLI args take precedence)
   const envPort = process.env.PORT ? parseInt(process.env.PORT, 10) : undefined;
   const envHost = process.env.HOST;
+  const envPrinterType = process.env.PRINTER_TYPE;
+  const envPrinterName = process.env.PRINTER_NAME;
 
   // Build config with CLI overrides (priority: CLI > env > file config)
   const config: DeepPartial<SystemConfig> = {
@@ -69,7 +71,12 @@ async function main(): Promise<void> {
     },
     printer: {
       ...fileConfig.printer,
+      ...(envPrinterType && { type: envPrinterType as SystemConfig["printer"]["type"] }),
       ...(printerType && { type: printerType as SystemConfig["printer"]["type"] }),
+      options: {
+        ...fileConfig.printer?.options,
+        ...(envPrinterName && { printerName: envPrinterName }),
+      },
     },
   };
 
@@ -102,17 +109,22 @@ Options:
   -c, --config <path>    Path to config file (JSON)
   -p, --port <port>      Server port (default: 3000)
   -h, --host <host>      Server host (default: 0.0.0.0)
-  --printer <type>       Printer type (mock, cups, escpos, serial)
+  --printer <type>       Printer type (mock, native, cups, escpos, serial)
   --help                 Show this help message
 
 Environment Variables:
   PORT                   Server port (overridden by -p/--port)
   HOST                   Server host (overridden by -h/--host)
+  PRINTER_TYPE           Printer type (overridden by --printer)
+  PRINTER_NAME           Printer name (for native printer)
+  PRINTERS_JS_SIMULATE   Set to "true" for simulation mode (no actual printing)
 
 Example:
   log-dot-print --port 8080 --printer mock
   log-dot-print -c config.json
-  PORT=8080 log-dot-print --printer mock
+  PORT=8080 PRINTER_TYPE=native log-dot-print
+  PRINTER_TYPE=native PRINTER_NAME="Brother HL-L3230CDW" bun run dev
+  PRINTERS_JS_SIMULATE=true PRINTER_TYPE=native bun run dev
 
 API Endpoints:
   POST /log              Submit a single log entry
