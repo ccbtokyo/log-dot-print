@@ -88,4 +88,8 @@ export interface QueuePersistencePlugin {
   queryPrintJobs(options: PrintJobQueryOptions): Promise<PrintJob[]>;
   /** Count print jobs with filters */
   countPrintJobs(options?: PrintJobQueryOptions): Promise<number>;
+  /** Update print job file path (optional) */
+  updatePrintJobFilePath?(jobId: string, filePath: string): Promise<void>;
+  /** Get print job by ID (optional) */
+  getPrintJobById?(jobId: string): Promise<PrintJob | null>;
 }

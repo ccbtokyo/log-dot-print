@@ -291,6 +291,55 @@ describe("SqliteStorage", () => {
       expect(restored.status).toBe("pending");
       expect(restored.retryCount).toBe(0);
     });
+
+    test("should save and query print job with filePath", async () => {
+      const logEntry = createTestLogEntry();
+      await storage.save(logEntry);
+
+      const job = createTestPrintJob(logEntry, {
+        filePath: "/path/to/print-file.txt",
+      });
+      await storage.savePrintJob(job);
+
+      const jobs = await storage.queryPrintJobs({ status: "pending" });
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0].filePath).toBe("/path/to/print-file.txt");
+    });
+
+    test("should update print job file path", async () => {
+      const logEntry = createTestLogEntry();
+      await storage.save(logEntry);
+
+      const job = createTestPrintJob(logEntry);
+      await storage.savePrintJob(job);
+
+      await storage.updatePrintJobFilePath(job.id, "/path/to/persisted-file.txt");
+
+      const retrieved = await storage.getPrintJobById(job.id);
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.filePath).toBe("/path/to/persisted-file.txt");
+    });
+
+    test("should get print job by ID", async () => {
+      const logEntry = createTestLogEntry();
+      await storage.save(logEntry);
+
+      const job = createTestPrintJob(logEntry, {
+        filePath: "/path/to/file.txt",
+      });
+      await storage.savePrintJob(job);
+
+      const retrieved = await storage.getPrintJobById(job.id);
+      expect(retrieved).not.toBeNull();
+      expect(retrieved!.id).toBe(job.id);
+      expect(retrieved!.formattedContent).toBe(job.formattedContent);
+      expect(retrieved!.filePath).toBe("/path/to/file.txt");
+    });
+
+    test("should return null for non-existent print job", async () => {
+      const retrieved = await storage.getPrintJobById("non-existent-id");
+      expect(retrieved).toBeNull();
+    });
   });
 
   describe("error handling", () => {

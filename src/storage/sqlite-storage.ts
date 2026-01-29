@@ -31,6 +31,10 @@ import {
   COUNT_LOG_ENTRIES_SQL,
   QUERY_PRINT_JOBS_SQL,
   COUNT_PRINT_JOBS_SQL,
+  UPDATE_PRINT_JOB_FILE_PATH_SQL,
+  GET_PRINT_JOB_BY_ID_SQL,
+  MIGRATE_V1_TO_V2_SQL,
+  SCHEMA_VERSION,
 } from "./schema.js";
 
 interface LogEntryRow {
@@ -52,6 +56,7 @@ interface PendingJobRow {
   status: string;
   retry_count: number;
   error: string | null;
+  file_path: string | null;
   le_id: string;
   le_timestamp: string;
   le_level: string;
@@ -95,7 +100,21 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec("PRAGMA foreign_keys = ON");
     this.db.exec(CREATE_TABLES_SQL);
-    console.log(`[SqliteStorage] Initialized at ${this.dbPath}`);
+    this.migrateSchema();
+    console.log(`[SqliteStorage] Initialized at ${this.dbPath} (schema v${SCHEMA_VERSION})`);
+  }
+
+  private migrateSchema(): void {
+    // Check if file_path column exists in print_jobs table
+    const tableInfo = this.db!.prepare("PRAGMA table_info(print_jobs)").all() as Array<{
+      name: string;
+    }>;
+    const hasFilePath = tableInfo.some((col) => col.name === "file_path");
+
+    if (!hasFilePath) {
+      console.log("[SqliteStorage] Migrating schema to v2 (adding file_path column)");
+      this.db!.exec(MIGRATE_V1_TO_V2_SQL);
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -229,6 +248,7 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
         job.status,
         job.retryCount,
         job.error ?? null,
+        job.filePath ?? null,
         now,
       );
 
@@ -339,6 +359,23 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
     return row.count;
   }
 
+  async updatePrintJobFilePath(jobId: string, filePath: string): Promise<void> {
+    this.ensureDb();
+    const now = new Date().toISOString();
+    const stmt = this.db!.prepare(UPDATE_PRINT_JOB_FILE_PATH_SQL);
+    stmt.run(filePath, now, jobId);
+  }
+
+  async getPrintJobById(jobId: string): Promise<PrintJob | null> {
+    this.ensureDb();
+    const stmt = this.db!.prepare(GET_PRINT_JOB_BY_ID_SQL);
+    const row = stmt.get(jobId) as PrintJobRow | undefined;
+    if (!row) {
+      return null;
+    }
+    return this.rowToPrintJob(row);
+  }
+
   private ensureDb(): void {
     if (!this.db) {
       throw new Error("SqliteStorage not initialized");
@@ -374,6 +411,7 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
       status: row.status as PrintJobStatus,
       retryCount: row.retry_count,
       error: row.error ?? undefined,
+      filePath: row.file_path ?? undefined,
     };
   }
 }

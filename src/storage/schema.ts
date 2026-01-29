@@ -3,7 +3,7 @@
  * @see docs/architecture.md for design details
  */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * SQL statements for creating tables
@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS print_jobs (
   status TEXT NOT NULL DEFAULT 'pending',
   retry_count INTEGER NOT NULL DEFAULT 0,
   error TEXT,
+  file_path TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (log_entry_id) REFERENCES log_entries(id)
 );
@@ -73,8 +74,8 @@ UPDATE log_entries SET printed = ? WHERE id = ?
  * SQL for inserting a print job
  */
 export const INSERT_PRINT_JOB_SQL = `
-INSERT INTO print_jobs (id, log_entry_id, formatted_content, created_at, status, retry_count, error, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO print_jobs (id, log_entry_id, formatted_content, created_at, status, retry_count, error, file_path, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 /**
@@ -104,6 +105,7 @@ SELECT
   pj.status,
   pj.retry_count,
   pj.error,
+  pj.file_path,
   le.id as le_id,
   le.timestamp as le_timestamp,
   le.level as le_level,
@@ -155,6 +157,7 @@ SELECT
   pj.status,
   pj.retry_count,
   pj.error,
+  pj.file_path,
   pj.updated_at,
   le.id as le_id,
   le.timestamp as le_timestamp,
@@ -173,4 +176,44 @@ WHERE 1=1
  */
 export const COUNT_PRINT_JOBS_SQL = `
 SELECT COUNT(*) as count FROM print_jobs WHERE 1=1
+`;
+
+/**
+ * SQL for updating print job file path
+ */
+export const UPDATE_PRINT_JOB_FILE_PATH_SQL = `
+UPDATE print_jobs SET file_path = ?, updated_at = ? WHERE id = ?
+`;
+
+/**
+ * SQL for getting a single print job by ID
+ */
+export const GET_PRINT_JOB_BY_ID_SQL = `
+SELECT
+  pj.id,
+  pj.log_entry_id,
+  pj.formatted_content,
+  pj.created_at,
+  pj.status,
+  pj.retry_count,
+  pj.error,
+  pj.file_path,
+  pj.updated_at,
+  le.id as le_id,
+  le.timestamp as le_timestamp,
+  le.level as le_level,
+  le.source as le_source,
+  le.message as le_message,
+  le.printed as le_printed,
+  le.metadata as le_metadata
+FROM print_jobs pj
+JOIN log_entries le ON pj.log_entry_id = le.id
+WHERE pj.id = ?
+`;
+
+/**
+ * Migration SQL for schema version 2 (add file_path column)
+ */
+export const MIGRATE_V1_TO_V2_SQL = `
+ALTER TABLE print_jobs ADD COLUMN file_path TEXT
 `;

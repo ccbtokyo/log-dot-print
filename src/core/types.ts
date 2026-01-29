@@ -54,6 +54,8 @@ export interface PrintJob {
   retryCount: number;
   /** Error message if failed */
   error?: string;
+  /** Path to persisted print file (if enabled) */
+  filePath?: string;
 }
 
 export type PrintJobStatus = "pending" | "printing" | "completed" | "failed";
