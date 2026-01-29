@@ -393,6 +393,13 @@ export class LogPrintApp {
     void this.storage.markPrinted(job.logEntry.id).catch((error) => {
       console.error("[App] Failed to update printed status:", error);
     });
+
+    // Update file path if available
+    if (job.filePath && this.queueStorage?.updatePrintJobFilePath) {
+      void this.queueStorage.updatePrintJobFilePath(job.id, job.filePath).catch((error) => {
+        console.error("[App] Failed to update file path:", error);
+      });
+    }
   }
 
   private mergeConfig(defaults: AppConfig, overrides: DeepPartial<AppConfig>): AppConfig {

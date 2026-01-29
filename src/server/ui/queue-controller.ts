@@ -5,9 +5,12 @@
  */
 
 import { Hono } from "hono";
+import { readFile, stat } from "node:fs/promises";
+import { basename } from "node:path";
 import type { PrintJob, TypedEventEmitter, QueuePersistencePlugin } from "../../core/index.js";
 import type { PrintQueue } from "../../printers/index.js";
 import type { LogFormatterPlugin } from "../../core/index.js";
+import { printerDiscovery } from "../../printers/discovery.js";
 
 /**
  * Queue controller for REST API
@@ -146,6 +149,46 @@ export class QueueController {
         },
       });
     });
+
+    // GET /api/history/:id/download - Download print file
+    this.app.get("/api/history/:id/download", async (c) => {
+      if (!this.storage?.getPrintJobById) {
+        return c.json({ error: "Storage not configured" }, 503);
+      }
+
+      const id = c.req.param("id");
+      const job = await this.storage.getPrintJobById(id);
+
+      if (!job) {
+        return c.json({ error: "Job not found" }, 404);
+      }
+
+      if (!job.filePath) {
+        return c.json({ error: "No file available for this job" }, 404);
+      }
+
+      try {
+        await stat(job.filePath);
+      } catch {
+        return c.json({ error: "File not found on disk" }, 404);
+      }
+
+      const content = await readFile(job.filePath, "utf-8");
+      const filename = basename(job.filePath);
+
+      return new Response(content, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+        },
+      });
+    });
+
+    // GET /api/printers - List available OS printers (native mode)
+    this.app.get("/api/printers", async (c) => {
+      const printers = await printerDiscovery.listPrinters();
+      return c.json({ printers });
+    });
   }
 
   private serializePrintJob(job: PrintJob): object {
@@ -176,6 +219,7 @@ export class QueueController {
       updatedAt: job.createdAt.toISOString(), // Use createdAt as updatedAt is not in PrintJob type
       retryCount: job.retryCount,
       error: job.error,
+      hasFile: !!job.filePath,
     };
   }
 }
