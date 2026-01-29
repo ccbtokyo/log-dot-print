@@ -1,0 +1,90 @@
+/**
+ * REST API client for queue management
+ */
+
+import type { QueueState, PrintJob, JobPreview } from "../types.js";
+
+export class ApiClient {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = "") {
+    this.baseUrl = baseUrl;
+  }
+
+  async getQueueState(): Promise<QueueState> {
+    const response = await fetch(`${this.baseUrl}/api/queue`);
+    if (!response.ok) {
+      throw new Error(`Failed to get queue state: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async getJob(id: string): Promise<PrintJob> {
+    const response = await fetch(`${this.baseUrl}/api/queue/${encodeURIComponent(id)}`);
+    if (!response.ok) {
+      throw new Error(`Failed to get job: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async getJobPreview(id: string): Promise<JobPreview> {
+    const response = await fetch(`${this.baseUrl}/api/queue/${encodeURIComponent(id)}/preview`);
+    if (!response.ok) {
+      throw new Error(`Failed to get job preview: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async pauseQueue(): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/queue/pause`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to pause queue: ${response.status}`);
+    }
+  }
+
+  async resumeQueue(): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/queue/resume`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to resume queue: ${response.status}`);
+    }
+  }
+
+  async clearQueue(): Promise<{ removedCount: number }> {
+    const response = await fetch(`${this.baseUrl}/api/queue/clear`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to clear queue: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async skipJob(id: string): Promise<PrintJob | null> {
+    const response = await fetch(`${this.baseUrl}/api/queue/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (response.status === 404) {
+      return null;
+    }
+    if (!response.ok) {
+      throw new Error(`Failed to skip job: ${response.status}`);
+    }
+    const result = await response.json();
+    return result.job ?? null;
+  }
+
+  async prioritizeJob(id: string): Promise<number> {
+    const response = await fetch(`${this.baseUrl}/api/queue/${encodeURIComponent(id)}/prioritize`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to prioritize job: ${response.status}`);
+    }
+    const result = await response.json();
+    return result.newPosition;
+  }
+}
