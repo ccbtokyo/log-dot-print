@@ -6,10 +6,10 @@ import {
   resetPrinterMocks,
 } from "./printers-mock.js";
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { stat } from "node:fs/promises";
+import { stat, rm, mkdir, readFile } from "node:fs/promises";
 
 import { NativePrinter } from "../native.js";
 import { TypedEventEmitter } from "../../core/events.js";
@@ -111,6 +111,19 @@ describe("NativePrinter", () => {
         "Printer not found: NonExistent",
       );
     });
+
+    test("connects in degraded mode when no default printer", async () => {
+      mockGetDefaultPrinter.mockImplementationOnce(() => Promise.resolve(null));
+      const printer = new NativePrinter();
+
+      await printer.initialize(eventBus, config);
+
+      const status = await printer.getStatus();
+      expect(status.connected).toBe(true);
+      expect(status.ready).toBe(false);
+
+      await printer.shutdown();
+    });
   });
 
   describe("testConnection", () => {
@@ -181,6 +194,17 @@ describe("NativePrinter", () => {
       await expect(printer.print(job)).rejects.toThrow("Printer not connected");
     });
 
+    test("throws error when in degraded mode", async () => {
+      mockGetDefaultPrinter.mockImplementationOnce(() => Promise.resolve(null));
+      const printer = new NativePrinter();
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await expect(printer.print(job)).rejects.toThrow("Printer not connected");
+
+      await printer.shutdown();
+    });
+
     test("cleans up temp file after printing", async () => {
       const printer = new NativePrinter({ printerName: "EPSON_PX1VL" });
       await printer.initialize(eventBus, config);
@@ -232,6 +256,53 @@ describe("NativePrinter", () => {
       await printer.shutdown();
 
       expect((await printer.getStatus()).connected).toBe(false);
+    });
+  });
+
+  describe("file persistence", () => {
+    const persistDir = join(tmpdir(), "log-dot-print-test-persist");
+
+    beforeEach(async () => {
+      await mkdir(persistDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+      await rm(persistDir, { recursive: true, force: true });
+    });
+
+    test("persists print file when persistDir is configured", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("persist-test");
+      await printer.print(job);
+
+      // Verify file path is set on job
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toContain(persistDir);
+      expect(job.filePath).toContain("persist-test");
+
+      // Verify file exists and has correct content
+      const content = await readFile(job.filePath!, "utf-8");
+      expect(content).toBe(job.formattedContent);
+
+      await printer.shutdown();
+    });
+
+    test("does not persist file when persistDir is not configured", async () => {
+      const printer = new NativePrinter({ printerName: "EPSON_PX1VL" });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("no-persist-test");
+      await printer.print(job);
+
+      // Verify file path is not set
+      expect(job.filePath).toBeUndefined();
+
+      await printer.shutdown();
     });
   });
 });

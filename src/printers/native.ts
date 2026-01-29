@@ -13,7 +13,7 @@ import {
 } from "@printers/printers";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { BasePrinter } from "./base-printer.js";
 import { printerRegistry } from "./registry.js";
@@ -37,6 +37,8 @@ export interface NativePrinterOptions {
   color?: boolean;
   /** Landscape orientation */
   landscape?: boolean;
+  /** Directory to persist print files for later download */
+  persistDir?: string;
 }
 
 const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
@@ -80,6 +82,8 @@ export class NativePrinter extends BasePrinter {
       options.paperSize === "Tabloid"
         ? options.paperSize
         : undefined;
+    const persistDir =
+      typeof options.persistDir === "string" ? options.persistDir.trim() : undefined;
     this.options = {
       printerName: printerName || undefined,
       copies,
@@ -88,6 +92,7 @@ export class NativePrinter extends BasePrinter {
       quality,
       color,
       landscape,
+      persistDir: persistDir || undefined,
     };
   }
 
@@ -98,17 +103,19 @@ export class NativePrinter extends BasePrinter {
       if (!this.printer) {
         throw new Error(`Printer not found: ${this.options.printerName}`);
       }
+      this.printerAvailable = true;
+      console.log(`[NativePrinter] Connected to ${this.printer.name}`);
     } else {
       // Use default printer
       this.printer = await getDefaultPrinter();
+      if (this.printer) {
+        this.printerAvailable = true;
+        console.log(`[NativePrinter] Connected to ${this.printer.name}`);
+      } else {
+        this.printerAvailable = false;
+        console.warn("[NativePrinter] No default printer available - running in degraded mode");
+      }
     }
-
-    if (!this.printer) {
-      throw new Error("No printer available");
-    }
-
-    this.printerAvailable = true;
-    console.log(`[NativePrinter] Connected to ${this.printer.name}`);
   }
 
   protected async disconnect(): Promise<void> {
@@ -184,6 +191,27 @@ export class NativePrinter extends BasePrinter {
       // Print the file
       // Explicitly wait for completion before removing the temp file.
       await this.printer.printFile(tempFile, { simple: printOptions, waitForCompletion: true });
+
+      // Persist print file if persistDir is configured
+      if (this.options.persistDir) {
+        await mkdir(this.options.persistDir, { recursive: true });
+        const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+        const persistFile = join(this.options.persistDir, `${timestamp}_${safeJobId}.txt`);
+        await copyFile(tempFile, persistFile);
+        job.filePath = persistFile;
+        console.log(`[NativePrinter] Print file persisted: ${persistFile}`);
+      }
+
+      // Save debug copy in simulation mode if DEBUG_PRINT_DIR is set
+      const debugDir = process.env.DEBUG_PRINT_DIR;
+      const isSimulation = process.env.PRINTERS_JS_SIMULATE === "true";
+      if (isSimulation && debugDir) {
+        await mkdir(debugDir, { recursive: true });
+        const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+        const debugFile = join(debugDir, `${timestamp}_${safeJobId}.txt`);
+        await copyFile(tempFile, debugFile);
+        console.log(`[NativePrinter] Debug output saved: ${debugFile}`);
+      }
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
