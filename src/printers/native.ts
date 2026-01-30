@@ -5,12 +5,6 @@
  *          src/printers/discovery.ts (PrinterDiscoveryService)
  *          src/core/types.ts (PrintJob, PrinterType, PrinterStatus)
  */
-import {
-  getPrinterByName,
-  getDefaultPrinter,
-  type Printer,
-  type SimplePrintOptions,
-} from "@printers/printers";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -18,6 +12,23 @@ import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { BasePrinter } from "./base-printer.js";
 import { printerRegistry } from "./registry.js";
 import type { PrintJob, PrinterType, PrinterStatus } from "../core/types.js";
+
+// Dynamic import types for @printers/printers
+type PrintersModule = typeof import("@printers/printers");
+type Printer = import("@printers/printers").Printer;
+type SimplePrintOptions = import("@printers/printers").SimplePrintOptions;
+
+let printersModule: PrintersModule | null = null;
+
+/**
+ * Load @printers/printers module dynamically
+ */
+async function loadPrintersModule(): Promise<PrintersModule> {
+  if (!printersModule) {
+    printersModule = await import("@printers/printers");
+  }
+  return printersModule;
+}
 
 /**
  * Default directory for persisting print files
@@ -111,6 +122,8 @@ export class NativePrinter extends BasePrinter {
   }
 
   protected async connect(): Promise<void> {
+    const { getPrinterByName, getDefaultPrinter } = await loadPrintersModule();
+
     if (this.options.printerName) {
       // Avoid TOCTOU (exists -> fetch) by resolving the printer handle once.
       this.printer = await getPrinterByName(this.options.printerName);
@@ -226,5 +239,27 @@ function createNativePrinter(options: Record<string, unknown>): NativePrinter {
   return new NativePrinter(options as NativePrinterOptions);
 }
 
-// Register with printer registry
-printerRegistry.register("native", createNativePrinter);
+/**
+ * Register the native printer plugin
+ */
+export function register(): void {
+  printerRegistry.register("native", createNativePrinter);
+}
+
+/**
+ * Try to register the native printer plugin
+ * Only registers if @printers/printers module is available
+ * @returns true if registered successfully, false if module not available
+ */
+export async function tryRegister(): Promise<boolean> {
+  try {
+    // Check if @printers/printers is available
+    await import("@printers/printers");
+    register();
+    console.log("[NativePrinter] Registered successfully");
+    return true;
+  } catch {
+    console.log("[NativePrinter] @printers/printers not available, skipping registration");
+    return false;
+  }
+}

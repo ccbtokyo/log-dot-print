@@ -16,6 +16,7 @@ import {
   printerRegistry,
   tryRegisterSerialPrinter,
   tryRegisterEscposPrinter,
+  tryRegisterNativePrinter,
 } from "../printers/index.js";
 import { SqliteStorage, QueuePersistenceHandler } from "../storage/index.js";
 import { HttpReceiver } from "./http-server.js";
@@ -124,6 +125,7 @@ export class LogPrintApp {
     await Promise.all([
       tryRegisterSerialPrinter().catch(() => {}),
       tryRegisterEscposPrinter().catch(() => {}),
+      tryRegisterNativePrinter().catch(() => {}),
     ]);
 
     // Initialize storage if enabled

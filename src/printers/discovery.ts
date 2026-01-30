@@ -3,9 +3,27 @@
  *
  * Related: src/core/types.ts (DiscoveredPrinter)
  */
-import { getAllPrinters, getDefaultPrinter, printerExists, type Printer } from "@printers/printers";
-
 import type { DiscoveredPrinter } from "../core/types.js";
+
+// Dynamic import types for @printers/printers
+type PrintersModule = typeof import("@printers/printers");
+type Printer = import("@printers/printers").Printer;
+
+let printersModule: PrintersModule | null = null;
+
+/**
+ * Load @printers/printers module dynamically
+ * @returns The module or null if not available
+ */
+async function loadPrintersModule(): Promise<PrintersModule | null> {
+  if (printersModule) return printersModule;
+  try {
+    printersModule = await import("@printers/printers");
+    return printersModule;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Map @printers/printers Printer state to our status type
@@ -45,7 +63,13 @@ export class PrinterDiscoveryService {
    * List all available printers
    */
   async listPrinters(): Promise<DiscoveredPrinter[]> {
-    const [printers, defaultPrinter] = await Promise.all([getAllPrinters(), getDefaultPrinter()]);
+    const mod = await loadPrintersModule();
+    if (!mod) return [];
+
+    const [printers, defaultPrinter] = await Promise.all([
+      mod.getAllPrinters(),
+      mod.getDefaultPrinter(),
+    ]);
     const defaultName = defaultPrinter?.name;
 
     return printers.map((p) => toDiscoveredPrinter(p, defaultName));
@@ -55,7 +79,10 @@ export class PrinterDiscoveryService {
    * Get the default printer
    */
   async getDefaultPrinter(): Promise<DiscoveredPrinter | null> {
-    const printer = await getDefaultPrinter();
+    const mod = await loadPrintersModule();
+    if (!mod) return null;
+
+    const printer = await mod.getDefaultPrinter();
     if (!printer) return null;
     return toDiscoveredPrinter(printer, printer.name);
   }
@@ -64,11 +91,14 @@ export class PrinterDiscoveryService {
    * Check if a printer with the given name exists
    */
   async printerExists(name: string): Promise<boolean> {
+    const mod = await loadPrintersModule();
+    if (!mod) return false;
+
     const trimmed = typeof name === "string" ? name.trim() : "";
     if (trimmed.length === 0 || trimmed.length > 256 || trimmed.includes("\u0000")) {
       return false;
     }
-    return printerExists(trimmed);
+    return mod.printerExists(trimmed);
   }
 }
 
