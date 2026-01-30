@@ -259,5 +259,20 @@ export function register(): void {
   printerRegistry.register("serial", createSerialPrinter);
 }
 
-// Auto-register when imported
-register();
+/**
+ * Try to register the serial printer plugin
+ * Only registers if serialport module is available
+ * @returns true if registered successfully, false if module not available
+ */
+export async function tryRegister(): Promise<boolean> {
+  try {
+    // Check if serialport is available
+    await import("serialport");
+    register();
+    console.log("[SerialPrinter] Registered successfully");
+    return true;
+  } catch {
+    console.log("[SerialPrinter] serialport not available, skipping registration");
+    return false;
+  }
+}

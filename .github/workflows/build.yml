@@ -55,7 +55,13 @@ jobs:
         run: bun install
 
       - name: Build executable
-        run: bun build --compile --minify --sourcemap --target=${{ matrix.target }} src/cli.ts --outfile=dist/${{ matrix.artifact }}
+        run: |
+          bun build --compile --minify --sourcemap \
+            --external serialport \
+            --external @serialport/* \
+            --external escpos-usb \
+            --target=${{ matrix.target }} \
+            src/cli.ts --outfile=dist/${{ matrix.artifact }}
 
       - name: Copy UI assets
         shell: bash

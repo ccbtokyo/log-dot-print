@@ -10,8 +10,13 @@ import type {
   QueuePersistencePlugin,
 } from "../core/index.js";
 import { TypedEventEmitter, createPrintJob } from "../core/index.js";
-import { PrintQueue, DefaultFormatter, printerRegistry } from "../printers/index.js";
-import "../printers/index.js"; // registers all printers
+import {
+  PrintQueue,
+  DefaultFormatter,
+  printerRegistry,
+  tryRegisterSerialPrinter,
+  tryRegisterEscposPrinter,
+} from "../printers/index.js";
 import { SqliteStorage, QueuePersistenceHandler } from "../storage/index.js";
 import { HttpReceiver } from "./http-server.js";
 import { WebSocketReceiver } from "./websocket-server.js";
@@ -112,6 +117,14 @@ export class LogPrintApp {
    */
   async start(): Promise<void> {
     console.log("[App] Starting Log-Dot-Print...");
+
+    // Try to register optional printers (native module dependencies)
+    // These may fail in bundled environments (e.g., Windows EXE) where
+    // native modules cannot be included
+    await Promise.all([
+      tryRegisterSerialPrinter().catch(() => {}),
+      tryRegisterEscposPrinter().catch(() => {}),
+    ]);
 
     // Initialize storage if enabled
     if (this.config.storage?.enabled) {

@@ -6,8 +6,38 @@ export * from "./registry.js";
 export * from "./discovery.js";
 
 // Printer implementations (side effects: register with registry)
+// Note: escpos and serial are NOT auto-registered due to native module dependencies
+// Use tryRegisterSerialPrinter() and tryRegisterEscposPrinter() for conditional registration
 import "./mock.js";
 import "./cups.js";
-import "./escpos.js";
-import "./serial.js";
 import "./native.js";
+
+/**
+ * Try to register the serial printer plugin (requires serialport native module)
+ * Safe to call in environments where serialport may not be available
+ * @returns true if registered successfully, false if module not available
+ */
+export async function tryRegisterSerialPrinter(): Promise<boolean> {
+  try {
+    const { tryRegister } = await import("./serial.js");
+    return tryRegister();
+  } catch {
+    console.log("[Printers] Failed to load serial printer module");
+    return false;
+  }
+}
+
+/**
+ * Try to register the ESC/POS printer plugin (requires escpos native module)
+ * Safe to call in environments where escpos may not be available
+ * @returns true if registered successfully, false if module not available
+ */
+export async function tryRegisterEscposPrinter(): Promise<boolean> {
+  try {
+    const { tryRegister } = await import("./escpos.js");
+    return tryRegister();
+  } catch {
+    console.log("[Printers] Failed to load escpos printer module");
+    return false;
+  }
+}

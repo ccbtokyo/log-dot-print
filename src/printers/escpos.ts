@@ -298,5 +298,20 @@ export function register(): void {
   printerRegistry.register("escpos", createEscPosPrinter);
 }
 
-// Auto-register when imported
-register();
+/**
+ * Try to register the ESC/POS printer plugin
+ * Only registers if escpos module is available
+ * @returns true if registered successfully, false if module not available
+ */
+export async function tryRegister(): Promise<boolean> {
+  try {
+    // Check if escpos is available
+    await import("escpos");
+    register();
+    console.log("[EscPosPrinter] Registered successfully");
+    return true;
+  } catch {
+    console.log("[EscPosPrinter] escpos not available, skipping registration");
+    return false;
+  }
+}
