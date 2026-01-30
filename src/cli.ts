@@ -127,9 +127,10 @@ Example:
   PRINTERS_JS_SIMULATE=true PRINTER_TYPE=native bun run dev
 
 API Endpoints:
-  POST /log              Submit a single log entry
-  POST /logs             Submit multiple log entries
-  GET  /health           Health check
+  POST /api/log          Submit a single log entry
+  POST /api/logs         Submit multiple log entries
+  GET  /api/health       Health check
+  GET  /api/openapi.json OpenAPI specification
   WS   /ws               WebSocket connection for real-time streaming
 
 Log Entry Format:

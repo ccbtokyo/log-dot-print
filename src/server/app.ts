@@ -294,6 +294,14 @@ export class LogPrintApp {
     };
   }
 
+  /** Routes handled by HttpReceiver under /api/ */
+  private static readonly HTTP_RECEIVER_ROUTES = [
+    "/api/log",
+    "/api/logs",
+    "/api/health",
+    "/api/openapi.json",
+  ];
+
   /**
    * Handle HTTP requests, routing to appropriate handlers
    */
@@ -309,7 +317,12 @@ export class LogPrintApp {
       if (response) return response;
     }
 
-    // Try queue controller API routes
+    // Route specific /api/* paths to HttpReceiver
+    if (LogPrintApp.HTTP_RECEIVER_ROUTES.includes(pathname)) {
+      return this.httpReceiver.getApp().fetch(request);
+    }
+
+    // Route other /api/* paths to QueueController
     if (this.queueController && pathname.startsWith("/api/")) {
       console.log(`[App] Routing to QueueController: ${pathname}`);
       const response = await this.queueController.getApp().fetch(request);
@@ -317,7 +330,7 @@ export class LogPrintApp {
       return response;
     }
 
-    // Fall through to HTTP receiver for other routes
+    // Fall through to HTTP receiver for non-/api routes
     return this.httpReceiver.getApp().fetch(request);
   }
 

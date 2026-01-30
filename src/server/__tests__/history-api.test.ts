@@ -61,7 +61,7 @@ describe("History API integration", () => {
 
   test("completed job appears in /api/history", async () => {
     // Submit a log entry
-    const logResponse = await fetch(`${baseUrl}/log`, {
+    const logResponse = await fetch(`${baseUrl}/api/log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "test log for history" }),
@@ -89,7 +89,7 @@ describe("History API integration", () => {
   test("multiple completed jobs appear in correct order", async () => {
     // Submit multiple log entries
     for (let i = 1; i <= 3; i++) {
-      const response = await fetch(`${baseUrl}/log`, {
+      const response = await fetch(`${baseUrl}/api/log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: `log entry ${i}` }),
@@ -116,7 +116,7 @@ describe("History API integration", () => {
   test("pagination works correctly", async () => {
     // Submit 5 log entries
     for (let i = 1; i <= 5; i++) {
-      await fetch(`${baseUrl}/log`, {
+      await fetch(`${baseUrl}/api/log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: `pagination test ${i}` }),
@@ -148,7 +148,7 @@ describe("History API integration", () => {
   test("history count returns correct total", async () => {
     // Submit logs
     for (let i = 1; i <= 3; i++) {
-      await fetch(`${baseUrl}/log`, {
+      await fetch(`${baseUrl}/api/log`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: `count test ${i}` }),

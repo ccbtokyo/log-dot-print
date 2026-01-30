@@ -38,7 +38,7 @@ const createConfig = (): SystemConfig => ({
 });
 
 describe("Receivers queue-full handling", () => {
-  test("HTTP /log returns 503 when queue is full", async () => {
+  test("HTTP /api/log returns 503 when queue is full", async () => {
     const eventBus = new TypedEventEmitter();
     const receiver = new HttpReceiver();
     const config = createConfig();
@@ -56,7 +56,7 @@ describe("Receivers queue-full handling", () => {
     });
 
     try {
-      const response = await receiver.getApp().request("http://localhost/log", {
+      const response = await receiver.getApp().request("http://localhost/api/log", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: "hello" }),
@@ -73,7 +73,7 @@ describe("Receivers queue-full handling", () => {
     }
   });
 
-  test("HTTP /logs returns 503 if any entry is rejected", async () => {
+  test("HTTP /api/logs returns 503 if any entry is rejected", async () => {
     const eventBus = new TypedEventEmitter();
     const receiver = new HttpReceiver();
     const config = createConfig();
@@ -100,7 +100,7 @@ describe("Receivers queue-full handling", () => {
     });
 
     try {
-      const response = await receiver.getApp().request("http://localhost/logs", {
+      const response = await receiver.getApp().request("http://localhost/api/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(["ok", "reject"]),

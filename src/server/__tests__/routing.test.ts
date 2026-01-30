@@ -86,8 +86,8 @@ describe("LogPrintApp HTTP routing", () => {
     }
   });
 
-  test("/log routes to HttpReceiver (not QueueController)", async () => {
-    const response = await fetch(`${baseUrl}/log`, {
+  test("/api/log routes to HttpReceiver (not QueueController)", async () => {
+    const response = await fetch(`${baseUrl}/api/log`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "test log" }),
@@ -99,16 +99,16 @@ describe("LogPrintApp HTTP routing", () => {
     expect(data.success).toBe(true);
   });
 
-  test("/health routes to HttpReceiver", async () => {
-    const response = await fetch(`${baseUrl}/health`);
+  test("/api/health routes to HttpReceiver", async () => {
+    const response = await fetch(`${baseUrl}/api/health`);
 
     expect(response.status).toBe(200);
     const data = await response.json();
     expect(data.status).toBe("ok");
   });
 
-  test("/openapi.json routes to HttpReceiver", async () => {
-    const response = await fetch(`${baseUrl}/openapi.json`);
+  test("/api/openapi.json routes to HttpReceiver", async () => {
+    const response = await fetch(`${baseUrl}/api/openapi.json`);
 
     expect(response.status).toBe(200);
     const data = await response.json();
@@ -116,8 +116,8 @@ describe("LogPrintApp HTTP routing", () => {
     expect(data.info).toBeDefined();
   });
 
-  test("/logs (batch) routes to HttpReceiver", async () => {
-    const response = await fetch(`${baseUrl}/logs`, {
+  test("/api/logs (batch) routes to HttpReceiver", async () => {
+    const response = await fetch(`${baseUrl}/api/logs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify([{ message: "batch log 1" }, { message: "batch log 2" }]),

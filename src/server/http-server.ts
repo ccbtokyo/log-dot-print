@@ -134,7 +134,7 @@ export class HttpReceiver implements LogReceiverPlugin {
   private configureRoutes(): void {
     const healthRoute = createRoute({
       method: "get",
-      path: "/health",
+      path: "/api/health",
       responses: {
         200: {
           description: "Health check",
@@ -151,7 +151,7 @@ export class HttpReceiver implements LogReceiverPlugin {
 
     const logSubmitRoute = createRoute({
       method: "post",
-      path: "/log",
+      path: "/api/log",
       request: {
         body: {
           content: {
@@ -223,7 +223,7 @@ export class HttpReceiver implements LogReceiverPlugin {
 
     const batchSubmitRoute = createRoute({
       method: "post",
-      path: "/logs",
+      path: "/api/logs",
       request: {
         body: {
           content: {
@@ -298,7 +298,7 @@ export class HttpReceiver implements LogReceiverPlugin {
   }
 
   private configureOpenApi(): void {
-    this.app.doc("/openapi.json", {
+    this.app.doc("/api/openapi.json", {
       openapi: "3.1.0",
       info: {
         title: "Log-Dot-Print HTTP API",
