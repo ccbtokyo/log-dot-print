@@ -20,6 +20,11 @@ import { printerRegistry } from "./registry.js";
 import type { PrintJob, PrinterType, PrinterStatus } from "../core/types.js";
 
 /**
+ * Default directory for persisting print files
+ */
+const DEFAULT_PERSIST_DIR = "./data/prints";
+
+/**
  * Options for NativePrinter
  */
 export interface NativePrinterOptions {
@@ -37,11 +42,18 @@ export interface NativePrinterOptions {
   color?: boolean;
   /** Landscape orientation */
   landscape?: boolean;
-  /** Directory to persist print files for later download */
+  /** Directory to persist print files for later download (default: ./data/prints) */
   persistDir?: string;
 }
 
 const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
+
+/**
+ * Internal options with required persistDir (defaults applied)
+ */
+type NativePrinterInternalOptions = Omit<NativePrinterOptions, "persistDir"> & {
+  persistDir: string;
+};
 
 /**
  * NativePrinter - Cross-platform printer implementation
@@ -54,7 +66,7 @@ export class NativePrinter extends BasePrinter {
   readonly version = "1.0.0";
   protected readonly printerType: PrinterType = "native";
 
-  private options: NativePrinterOptions;
+  private options: NativePrinterInternalOptions;
   private printer: Printer | null = null;
   private printerAvailable = false;
 
@@ -83,7 +95,9 @@ export class NativePrinter extends BasePrinter {
         ? options.paperSize
         : undefined;
     const persistDir =
-      typeof options.persistDir === "string" ? options.persistDir.trim() : undefined;
+      typeof options.persistDir === "string" && options.persistDir.trim()
+        ? options.persistDir.trim()
+        : DEFAULT_PERSIST_DIR;
     this.options = {
       printerName: printerName || undefined,
       copies,
@@ -92,7 +106,7 @@ export class NativePrinter extends BasePrinter {
       quality,
       color,
       landscape,
-      persistDir: persistDir || undefined,
+      persistDir,
     };
   }
 
@@ -192,26 +206,13 @@ export class NativePrinter extends BasePrinter {
       // Explicitly wait for completion before removing the temp file.
       await this.printer.printFile(tempFile, { simple: printOptions, waitForCompletion: true });
 
-      // Persist print file if persistDir is configured
-      if (this.options.persistDir) {
-        await mkdir(this.options.persistDir, { recursive: true });
-        const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
-        const persistFile = join(this.options.persistDir, `${timestamp}_${safeJobId}.txt`);
-        await copyFile(tempFile, persistFile);
-        job.filePath = persistFile;
-        console.log(`[NativePrinter] Print file persisted: ${persistFile}`);
-      }
-
-      // Save debug copy in simulation mode if DEBUG_PRINT_DIR is set
-      const debugDir = process.env.DEBUG_PRINT_DIR;
-      const isSimulation = process.env.PRINTERS_JS_SIMULATE === "true";
-      if (isSimulation && debugDir) {
-        await mkdir(debugDir, { recursive: true });
-        const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
-        const debugFile = join(debugDir, `${timestamp}_${safeJobId}.txt`);
-        await copyFile(tempFile, debugFile);
-        console.log(`[NativePrinter] Debug output saved: ${debugFile}`);
-      }
+      // Persist print file (always enabled with default directory)
+      await mkdir(this.options.persistDir, { recursive: true });
+      const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+      const persistFile = join(this.options.persistDir, `${timestamp}_${safeJobId}.txt`);
+      await copyFile(tempFile, persistFile);
+      job.filePath = persistFile;
+      console.log(`[NativePrinter] Print file persisted: ${persistFile}`);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

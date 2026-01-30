@@ -260,20 +260,23 @@ describe("NativePrinter", () => {
   });
 
   describe("file persistence", () => {
-    const persistDir = join(tmpdir(), "log-dot-print-test-persist");
+    const customPersistDir = join(tmpdir(), "log-dot-print-test-persist");
+    const defaultPersistDir = "./data/prints";
 
     beforeEach(async () => {
-      await mkdir(persistDir, { recursive: true });
+      await mkdir(customPersistDir, { recursive: true });
     });
 
     afterEach(async () => {
-      await rm(persistDir, { recursive: true, force: true });
+      await rm(customPersistDir, { recursive: true, force: true });
+      // Clean up default persist dir if created during tests
+      await rm(defaultPersistDir, { recursive: true, force: true }).catch(() => {});
     });
 
     test("persists print file when persistDir is configured", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
-        persistDir,
+        persistDir: customPersistDir,
       });
       await printer.initialize(eventBus, config);
 
@@ -282,7 +285,7 @@ describe("NativePrinter", () => {
 
       // Verify file path is set on job
       expect(job.filePath).toBeDefined();
-      expect(job.filePath).toContain(persistDir);
+      expect(job.filePath).toContain(customPersistDir);
       expect(job.filePath).toContain("persist-test");
 
       // Verify file exists and has correct content
@@ -292,15 +295,21 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
-    test("does not persist file when persistDir is not configured", async () => {
+    test("uses default persistDir when not configured", async () => {
       const printer = new NativePrinter({ printerName: "EPSON_PX1VL" });
       await printer.initialize(eventBus, config);
 
-      const job = createTestPrintJob("no-persist-test");
+      const job = createTestPrintJob("default-persist-test");
       await printer.print(job);
 
-      // Verify file path is not set
-      expect(job.filePath).toBeUndefined();
+      // Verify file path is set and uses default directory
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toContain("data/prints");
+      expect(job.filePath).toContain("default-persist-test");
+
+      // Verify file exists and has correct content
+      const content = await readFile(job.filePath!, "utf-8");
+      expect(content).toBe(job.formattedContent);
 
       await printer.shutdown();
     });
