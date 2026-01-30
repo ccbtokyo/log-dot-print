@@ -98,6 +98,100 @@ describe("LogPrintApp HTTP routing", () => {
     const data = await response.json();
     expect(data.success).toBe(true);
   });
+
+  test("/health routes to HttpReceiver", async () => {
+    const response = await fetch(`${baseUrl}/health`);
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.status).toBe("ok");
+  });
+
+  test("/openapi.json routes to HttpReceiver", async () => {
+    const response = await fetch(`${baseUrl}/openapi.json`);
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.openapi).toBeDefined();
+    expect(data.info).toBeDefined();
+  });
+
+  test("/logs (batch) routes to HttpReceiver", async () => {
+    const response = await fetch(`${baseUrl}/logs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify([{ message: "batch log 1" }, { message: "batch log 2" }]),
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.results).toBeInstanceOf(Array);
+    expect(data.results.length).toBe(2);
+  });
+
+  test("/api/queue/pause routes to QueueController", async () => {
+    const response = await fetch(`${baseUrl}/api/queue/pause`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.message).toBe("Queue paused");
+  });
+
+  test("/api/queue/resume routes to QueueController", async () => {
+    // First pause, then resume
+    await fetch(`${baseUrl}/api/queue/pause`, { method: "POST" });
+
+    const response = await fetch(`${baseUrl}/api/queue/resume`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(data.message).toBe("Queue resumed");
+  });
+
+  test("/api/queue/clear routes to QueueController", async () => {
+    const response = await fetch(`${baseUrl}/api/queue/clear`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.success).toBe(true);
+    expect(typeof data.removedCount).toBe("number");
+  });
+
+  test("/api/queue/:id returns 404 for non-existent job", async () => {
+    const response = await fetch(`${baseUrl}/api/queue/non-existent-id`);
+
+    expect(response.status).toBe(404);
+  });
+
+  test("/api/queue/:id/preview returns 404 for non-existent job", async () => {
+    const response = await fetch(`${baseUrl}/api/queue/non-existent-id/preview`);
+
+    expect(response.status).toBe(404);
+  });
+
+  test("DELETE /api/queue/:id returns 404 for non-existent job", async () => {
+    const response = await fetch(`${baseUrl}/api/queue/non-existent-id`, {
+      method: "DELETE",
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  test("/api/queue/:id/prioritize returns 404 for non-existent job", async () => {
+    const response = await fetch(`${baseUrl}/api/queue/non-existent-id/prioritize`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(404);
+  });
 });
 
 /**
