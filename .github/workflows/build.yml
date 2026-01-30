@@ -55,6 +55,7 @@ jobs:
         run: bun install
 
       - name: Build executable
+        shell: bash
         run: |
           bun build --compile --minify --sourcemap \
             --external serialport \
