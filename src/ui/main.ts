@@ -125,6 +125,7 @@ const statusBarCallbacks: StatusBarCallbacks = {
     try {
       await apiClient.updatePrinterSettings(printerName);
       store.setCurrentPrinter(printerName);
+      store.setPrinterLoading(false);
       console.log("[App] Printer changed to:", printerName ?? "(default)");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update printer";

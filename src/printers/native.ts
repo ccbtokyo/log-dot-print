@@ -70,6 +70,8 @@ export interface NativePrinterOptions {
   landscape?: boolean;
   /** Directory to persist print files for later download (default: ./data/prints) */
   persistDir?: string;
+  /** Callback to get the current printer name from storage */
+  getPrinterNameFromStorage?: () => Promise<string | null>;
 }
 
 const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
@@ -95,6 +97,7 @@ export class NativePrinter extends BasePrinter {
   private options: NativePrinterInternalOptions;
   private printer: Printer | null = null;
   private printerAvailable = false;
+  private getPrinterNameFromStorage?: () => Promise<string | null>;
 
   constructor(options: NativePrinterOptions = {}) {
     super();
@@ -134,6 +137,7 @@ export class NativePrinter extends BasePrinter {
       landscape,
       persistDir,
     };
+    this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
   }
 
   protected async connect(): Promise<void> {
@@ -205,6 +209,24 @@ export class NativePrinter extends BasePrinter {
       throw new Error(`Print content too large: ${bytes} bytes`);
     }
 
+    // Get target printer (use saved setting if available and different from current)
+    let targetPrinter = this.printer;
+    if (this.getPrinterNameFromStorage) {
+      const savedPrinterName = await this.getPrinterNameFromStorage();
+      if (savedPrinterName && savedPrinterName !== this.printer.name) {
+        const { getPrinterByName } = await loadPrintersModule();
+        const savedPrinter = await getPrinterByName(savedPrinterName);
+        if (savedPrinter) {
+          targetPrinter = savedPrinter;
+          console.log(`[NativePrinter] Using saved printer: ${savedPrinterName}`);
+        } else {
+          console.warn(
+            `[NativePrinter] Saved printer "${savedPrinterName}" not found, using default`,
+          );
+        }
+      }
+    }
+
     const safeJobId = (job.id || "job")
       .replaceAll(/[^a-zA-Z0-9_-]/g, "_")
       .replaceAll(/^_+|_+$/g, "")
@@ -233,7 +255,7 @@ export class NativePrinter extends BasePrinter {
 
       // Print the file
       // Explicitly wait for completion before removing the temp file.
-      await this.printer.printFile(tempFile, { simple: printOptions, waitForCompletion: true });
+      await targetPrinter.printFile(tempFile, { simple: printOptions, waitForCompletion: true });
 
       // Persist print file (always enabled with default directory)
       await mkdir(this.options.persistDir, { recursive: true });

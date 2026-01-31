@@ -167,7 +167,14 @@ export class LogPrintApp {
     await this.formatter.initialize(this.eventBus, this.config);
 
     // Initialize printer
-    this.printer = printerRegistry.create(this.config.printer.type, this.config.printer.options);
+    const printerOptions = {
+      ...this.config.printer.options,
+      getPrinterNameFromStorage: async () => {
+        const sqliteStorage = this.queueStorage as SqliteStorage | undefined;
+        return sqliteStorage?.getSetting ? await sqliteStorage.getSetting("printer.name") : null;
+      },
+    };
+    this.printer = printerRegistry.create(this.config.printer.type, printerOptions);
     await this.printer.initialize(this.eventBus, this.config);
 
     // Initialize print queue
