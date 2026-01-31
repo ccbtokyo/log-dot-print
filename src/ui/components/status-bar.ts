@@ -6,6 +6,10 @@ import { html, render } from "lit-html";
 import type { AppState } from "../state/store.js";
 import type { ConnectionState } from "../services/ws-client.js";
 
+export interface StatusBarCallbacks {
+  onPrinterChange?: (printerName: string | null) => void;
+}
+
 const getConnectionIcon = (state: ConnectionState): string => {
   switch (state) {
     case "connected":
@@ -31,8 +35,18 @@ const getConnectionText = (state: ConnectionState): string => {
   }
 };
 
-export const renderStatusBar = (container: HTMLElement, state: AppState) => {
-  const { queue, connection } = state;
+export const renderStatusBar = (
+  container: HTMLElement,
+  state: AppState,
+  callbacks?: StatusBarCallbacks,
+) => {
+  const { queue, connection, printerSettings } = state;
+
+  const handlePrinterChange = (event: Event) => {
+    const select = event.target as HTMLSelectElement;
+    const value = select.value;
+    callbacks?.onPrinterChange?.(value === "" ? null : value);
+  };
 
   const template = html`
     <div class="status-bar">
@@ -51,6 +65,36 @@ export const renderStatusBar = (container: HTMLElement, state: AppState) => {
       <div class="status-item ${queue.isPaused ? "paused" : ""}">
         <span class="label">Status:</span>
         <span class="value">${queue.isPaused ? "Paused" : "Running"}</span>
+      </div>
+      <div class="status-item printer-selector">
+        <span class="icon">🖨️</span>
+        <select
+          class="printer-select"
+          @change=${handlePrinterChange}
+          ?disabled=${printerSettings.isLoading}
+        >
+          ${printerSettings.availablePrinters.map(
+            (printer) => html`
+              <option
+                value=${printer.isDefault ? "" : printer.name}
+                ?selected=${
+                  printerSettings.isDefault
+                    ? printer.isDefault
+                    : printerSettings.currentPrinter === printer.name
+                }
+              >
+                ${printer.name}${printer.isDefault ? " (default)" : ""}
+              </option>
+            `,
+          )}
+        </select>
+        ${
+          printerSettings.isLoading
+            ? html`
+                <span class="loading-indicator">⏳</span>
+              `
+            : ""
+        }
       </div>
     </div>
   `;

@@ -103,6 +103,49 @@ body {
   color: var(--color-warning);
 }
 
+/* Printer Selector in Status Bar */
+.status-item.printer-selector {
+  margin-left: auto;
+}
+
+.printer-select {
+  background: var(--color-border);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  cursor: pointer;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.printer-select:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.printer-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.3);
+}
+
+.printer-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.printer-select option {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.loading-indicator {
+  margin-left: 0.25rem;
+}
+
 /* Controls */
 .controls {
   display: flex;

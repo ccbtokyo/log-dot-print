@@ -7,7 +7,13 @@
 import { Hono } from "hono";
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
-import type { PrintJob, TypedEventEmitter, QueuePersistencePlugin } from "../../core/index.js";
+import type {
+  PrintJob,
+  TypedEventEmitter,
+  QueuePersistencePlugin,
+  PrinterSettings,
+} from "../../core/index.js";
+import type { SqliteStorage } from "../../storage/sqlite-storage.js";
 import type { PrintQueue } from "../../printers/index.js";
 import type { LogFormatterPlugin } from "../../core/index.js";
 import { printerDiscovery } from "../../printers/discovery.js";
@@ -201,6 +207,68 @@ export class QueueController {
       } catch (error) {
         console.error("[QueueController] Failed to list printers:", error);
         return c.json({ error: "Failed to list printers", details: String(error) }, 500);
+      }
+    });
+
+    // GET /api/settings/printer - Get printer settings
+    this.app.get("/api/settings/printer", async (c) => {
+      try {
+        const printers = await printerDiscovery.listPrinters();
+        const sqliteStorage = this.storage as SqliteStorage | undefined;
+        const savedPrinter = sqliteStorage?.getSetting
+          ? await sqliteStorage.getSetting("printer.name")
+          : null;
+
+        const currentPrinter = savedPrinter ?? null;
+        const isDefault = savedPrinter === null;
+
+        const response: PrinterSettings = {
+          currentPrinter,
+          availablePrinters: printers,
+          isDefault,
+        };
+
+        return c.json(response);
+      } catch (error) {
+        console.error("[QueueController] Failed to get printer settings:", error);
+        return c.json({ error: "Failed to get printer settings", details: String(error) }, 500);
+      }
+    });
+
+    // PUT /api/settings/printer - Update printer setting
+    this.app.put("/api/settings/printer", async (c) => {
+      const sqliteStorage = this.storage as SqliteStorage | undefined;
+      if (!sqliteStorage?.setSetting) {
+        return c.json({ error: "Storage not configured for settings" }, 503);
+      }
+
+      let body: { printerName?: string | null };
+      try {
+        body = await c.req.json();
+      } catch {
+        return c.json({ error: "Invalid JSON body" }, 400);
+      }
+
+      if (!("printerName" in body)) {
+        return c.json({ error: "Missing printerName field" }, 400);
+      }
+
+      const { printerName } = body;
+
+      try {
+        if (printerName === null) {
+          // Clear the setting to use default
+          await sqliteStorage.deleteSetting("printer.name");
+          console.log("[QueueController] Printer setting cleared (using default)");
+        } else if (typeof printerName === "string") {
+          await sqliteStorage.setSetting("printer.name", printerName);
+          console.log(`[QueueController] Printer setting saved: ${printerName}`);
+        }
+
+        return c.json({ success: true, printerName });
+      } catch (error) {
+        console.error("[QueueController] Failed to save printer setting:", error);
+        return c.json({ error: "Failed to save printer setting", details: String(error) }, 500);
       }
     });
   }

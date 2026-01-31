@@ -34,6 +34,11 @@ import {
   UPDATE_PRINT_JOB_FILE_PATH_SQL,
   GET_PRINT_JOB_BY_ID_SQL,
   MIGRATE_V1_TO_V2_SQL,
+  MIGRATE_V2_TO_V3_SQL,
+  GET_SETTING_SQL,
+  SET_SETTING_SQL,
+  DELETE_SETTING_SQL,
+  GET_ALL_SETTINGS_SQL,
   SCHEMA_VERSION,
 } from "./schema.js";
 
@@ -115,6 +120,17 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
       console.log("[SqliteStorage] Migrating schema to v2 (adding file_path column)");
       this.db!.exec(MIGRATE_V1_TO_V2_SQL);
     }
+
+    // Check if settings table exists
+    const tables = this.db!.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='settings'",
+    ).all() as Array<{ name: string }>;
+    const hasSettingsTable = tables.length > 0;
+
+    if (!hasSettingsTable) {
+      console.log("[SqliteStorage] Migrating schema to v3 (adding settings table)");
+      this.db!.exec(MIGRATE_V2_TO_V3_SQL);
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -123,6 +139,50 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
       this.db = null;
     }
     console.log("[SqliteStorage] Shutdown complete");
+  }
+
+  // ==================== Settings Methods ====================
+
+  /**
+   * Get a setting value by key
+   * @returns The setting value, or null if not found
+   */
+  async getSetting(key: string): Promise<string | null> {
+    this.ensureDb();
+    const row = this.db!.prepare(GET_SETTING_SQL).get(key) as { value: string } | null;
+    return row?.value ?? null;
+  }
+
+  /**
+   * Set a setting value (insert or update)
+   */
+  async setSetting(key: string, value: string): Promise<void> {
+    this.ensureDb();
+    this.db!.prepare(SET_SETTING_SQL).run(key, value);
+  }
+
+  /**
+   * Delete a setting by key
+   */
+  async deleteSetting(key: string): Promise<void> {
+    this.ensureDb();
+    this.db!.prepare(DELETE_SETTING_SQL).run(key);
+  }
+
+  /**
+   * Get all settings as a key-value object
+   */
+  async getAllSettings(): Promise<Record<string, string>> {
+    this.ensureDb();
+    const rows = this.db!.prepare(GET_ALL_SETTINGS_SQL).all() as Array<{
+      key: string;
+      value: string;
+    }>;
+    const settings: Record<string, string> = {};
+    for (const row of rows) {
+      settings[row.key] = row.value;
+    }
+    return settings;
   }
 
   async save(entry: LogEntry): Promise<void> {

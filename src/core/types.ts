@@ -214,3 +214,15 @@ export interface JsonFormatConfig {
   includeSource?: boolean;
   includeLevel?: boolean;
 }
+
+/**
+ * Printer settings for API response
+ */
+export interface PrinterSettings {
+  /** Currently selected printer name (OS printer name) */
+  currentPrinter: string | null;
+  /** List of available printers discovered from OS */
+  availablePrinters: DiscoveredPrinter[];
+  /** Whether using the OS default printer */
+  isDefault: boolean;
+}

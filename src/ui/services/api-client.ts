@@ -2,7 +2,13 @@
  * REST API client for queue management
  */
 
-import type { QueueState, PrintJob, JobPreview, HistoryResponse } from "../types.js";
+import type {
+  QueueState,
+  PrintJob,
+  JobPreview,
+  HistoryResponse,
+  PrinterSettingsState,
+} from "../types.js";
 
 export class ApiClient {
   private baseUrl: string;
@@ -103,5 +109,31 @@ export class ApiClient {
       throw new Error(`Failed to get history: ${response.status}`);
     }
     return response.json();
+  }
+
+  async getPrinterSettings(): Promise<PrinterSettingsState> {
+    const response = await fetch(`${this.baseUrl}/api/settings/printer`);
+    if (!response.ok) {
+      throw new Error(`Failed to get printer settings: ${response.status}`);
+    }
+    const data = await response.json();
+    return {
+      currentPrinter: data.currentPrinter,
+      availablePrinters: data.availablePrinters,
+      isDefault: data.isDefault,
+      isLoading: false,
+      error: null,
+    };
+  }
+
+  async updatePrinterSettings(printerName: string | null): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/settings/printer`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ printerName }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update printer settings: ${response.status}`);
+    }
   }
 }

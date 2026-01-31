@@ -2,7 +2,14 @@
  * Simple reactive store for UI state
  */
 
-import type { QueueState, QueueJobInfo, TabType, HistoryState, PaginationInfo } from "../types.js";
+import type {
+  QueueState,
+  QueueJobInfo,
+  TabType,
+  HistoryState,
+  PaginationInfo,
+  PrinterSettingsState,
+} from "../types.js";
 import type { ConnectionState } from "../services/ws-client.js";
 
 export interface AppState {
@@ -12,6 +19,7 @@ export interface AppState {
   error: string | null;
   activeTab: TabType;
   history: HistoryState;
+  printerSettings: PrinterSettingsState;
 }
 
 export type StateListener = (state: AppState) => void;
@@ -30,6 +38,14 @@ const initialHistoryState: HistoryState = {
   error: null,
 };
 
+const initialPrinterSettings: PrinterSettingsState = {
+  currentPrinter: null,
+  availablePrinters: [],
+  isDefault: true,
+  isLoading: false,
+  error: null,
+};
+
 export class Store {
   private state: AppState = {
     queue: initialQueueState,
@@ -38,6 +54,7 @@ export class Store {
     error: null,
     activeTab: "queue",
     history: initialHistoryState,
+    printerSettings: initialPrinterSettings,
   };
 
   private listeners = new Set<StateListener>();
@@ -116,6 +133,39 @@ export class Store {
       return null;
     }
     return this.state.queue.jobs.find((job) => job.id === this.state.selectedJobId) ?? null;
+  }
+
+  setPrinterSettings(printerSettings: PrinterSettingsState): void {
+    this.state = { ...this.state, printerSettings };
+    this.notify();
+  }
+
+  setPrinterLoading(isLoading: boolean): void {
+    this.state = {
+      ...this.state,
+      printerSettings: { ...this.state.printerSettings, isLoading },
+    };
+    this.notify();
+  }
+
+  setPrinterError(error: string | null): void {
+    this.state = {
+      ...this.state,
+      printerSettings: { ...this.state.printerSettings, error, isLoading: false },
+    };
+    this.notify();
+  }
+
+  setCurrentPrinter(printerName: string | null): void {
+    this.state = {
+      ...this.state,
+      printerSettings: {
+        ...this.state.printerSettings,
+        currentPrinter: printerName,
+        isDefault: printerName === null,
+      },
+    };
+    this.notify();
   }
 
   private notify(): void {

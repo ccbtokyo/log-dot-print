@@ -3,7 +3,7 @@
  * @see docs/architecture.md for design details
  */
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * SQL statements for creating tables
@@ -53,6 +53,13 @@ CREATE INDEX IF NOT EXISTS idx_log_entries_printed ON log_entries(printed);
 CREATE INDEX IF NOT EXISTS idx_print_jobs_status ON print_jobs(status);
 CREATE INDEX IF NOT EXISTS idx_print_jobs_log_entry_id ON print_jobs(log_entry_id);
 CREATE INDEX IF NOT EXISTS idx_status_history_job ON print_status_history(print_job_id);
+
+-- Settings table (key-value store for application settings)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 /**
@@ -216,4 +223,44 @@ WHERE pj.id = ?
  */
 export const MIGRATE_V1_TO_V2_SQL = `
 ALTER TABLE print_jobs ADD COLUMN file_path TEXT
+`;
+
+/**
+ * Migration SQL for schema version 3 (add settings table)
+ */
+export const MIGRATE_V2_TO_V3_SQL = `
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+`;
+
+/**
+ * SQL for getting a setting by key
+ */
+export const GET_SETTING_SQL = `
+SELECT value FROM settings WHERE key = ?
+`;
+
+/**
+ * SQL for setting/updating a setting (upsert)
+ */
+export const SET_SETTING_SQL = `
+INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+`;
+
+/**
+ * SQL for deleting a setting
+ */
+export const DELETE_SETTING_SQL = `
+DELETE FROM settings WHERE key = ?
+`;
+
+/**
+ * SQL for getting all settings
+ */
+export const GET_ALL_SETTINGS_SQL = `
+SELECT key, value FROM settings ORDER BY key
 `;

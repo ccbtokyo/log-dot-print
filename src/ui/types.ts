@@ -103,3 +103,25 @@ export type ServerMessage =
   | { type: "queue:resumed" }
   | { type: "pong" }
   | { type: "error"; message: string };
+
+/**
+ * Discovered printer from OS
+ */
+export interface DiscoveredPrinter {
+  name: string;
+  isDefault: boolean;
+  status?: string;
+  ready?: boolean;
+  description?: string;
+}
+
+/**
+ * Printer settings state
+ */
+export interface PrinterSettingsState {
+  currentPrinter: string | null;
+  availablePrinters: DiscoveredPrinter[];
+  isDefault: boolean;
+  isLoading: boolean;
+  error: string | null;
+}

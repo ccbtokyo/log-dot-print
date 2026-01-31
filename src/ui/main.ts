@@ -6,7 +6,7 @@ import { html, render, nothing } from "lit-html";
 import { store, type AppState } from "./state/store.js";
 import { WSClient } from "./services/ws-client.js";
 import { ApiClient } from "./services/api-client.js";
-import { renderStatusBar } from "./components/status-bar.js";
+import { renderStatusBar, type StatusBarCallbacks } from "./components/status-bar.js";
 import { renderControls, type ControlsHandlers } from "./components/controls.js";
 import { renderQueueList } from "./components/queue-list.js";
 import { renderJobPreview, type PreviewState } from "./components/job-preview.js";
@@ -118,6 +118,36 @@ const paginationHandlers: PaginationHandlers = {
   },
 };
 
+// Status bar handlers (for printer selector)
+const statusBarCallbacks: StatusBarCallbacks = {
+  onPrinterChange: async (printerName: string | null) => {
+    store.setPrinterLoading(true);
+    try {
+      await apiClient.updatePrinterSettings(printerName);
+      store.setCurrentPrinter(printerName);
+      console.log("[App] Printer changed to:", printerName ?? "(default)");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update printer";
+      store.setPrinterError(message);
+      console.error("[App] Failed to change printer:", error);
+    }
+  },
+};
+
+// Load printer settings
+async function loadPrinterSettings(): Promise<void> {
+  store.setPrinterLoading(true);
+  try {
+    const settings = await apiClient.getPrinterSettings();
+    store.setPrinterSettings(settings);
+    console.log("[App] Printer settings loaded:", settings);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load printer settings";
+    store.setPrinterError(message);
+    console.error("[App] Failed to load printer settings:", error);
+  }
+}
+
 // Load history data
 async function loadHistory(page: number): Promise<void> {
   const requestId = ++historyRequestId;
@@ -195,7 +225,7 @@ function renderPreview(): void {
 
 // Main render function
 function renderApp(state: AppState): void {
-  renderStatusBar(statusBarEl, state);
+  renderStatusBar(statusBarEl, state, statusBarCallbacks);
   renderTabs(tabsEl, state.activeTab, tabHandlers);
   renderErrorBanner(state.error);
 
@@ -272,6 +302,9 @@ function init(): void {
 
   // Connect WebSocket
   wsClient.connect();
+
+  // Load printer settings on init
+  loadPrinterSettings();
 
   console.log("[App] Initialized");
 }
