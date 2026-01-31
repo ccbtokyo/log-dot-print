@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import type { LogEntry, PrintJob } from "./types.js";
+import type { LogEntry, PrintJob, PrintContentType } from "./types.js";
 
 /**
  * Generate a unique ID
@@ -11,11 +11,16 @@ export function generateId(): string {
 /**
  * Create a print job from a log entry
  */
-export function createPrintJob(entry: LogEntry, formattedContent: string): PrintJob {
+export function createPrintJob(
+  entry: LogEntry,
+  formattedContent: string,
+  contentType?: PrintContentType,
+): PrintJob {
   return {
     id: generateId(),
     logEntry: entry,
     formattedContent,
+    contentType,
     createdAt: new Date(),
     status: "pending",
     retryCount: 0,

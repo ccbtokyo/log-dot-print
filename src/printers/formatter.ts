@@ -31,13 +31,20 @@ export class DefaultFormatter implements LogFormatterPlugin {
     includeLevel: false,
   };
 
-  async initialize(eventBus: TypedEventEmitter, config: SystemConfig): Promise<void> {
+  async initialize(_eventBus: TypedEventEmitter, config: SystemConfig): Promise<void> {
+    const format = config.format;
+    // DefaultFormatter only handles text and json formats
+    const outputFormat =
+      format?.outputFormat === "text" || format?.outputFormat === "json"
+        ? format.outputFormat
+        : "text";
+
     this.config = {
-      outputFormat: config.format?.outputFormat ?? "text",
-      maxLineWidth: config.format?.maxLineWidth ?? 80,
-      includeTimestamp: config.format?.includeTimestamp ?? true,
-      includeSource: config.format?.includeSource ?? true,
-      includeLevel: config.format?.includeLevel ?? false,
+      outputFormat,
+      maxLineWidth: format?.maxLineWidth ?? 80,
+      includeTimestamp: format?.includeTimestamp ?? true,
+      includeSource: format?.includeSource ?? true,
+      includeLevel: format?.includeLevel ?? false,
     };
   }
 

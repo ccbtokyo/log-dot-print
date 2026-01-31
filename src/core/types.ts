@@ -37,6 +37,11 @@ export interface LogSubmitResult {
 export type LogLevel = string;
 
 /**
+ * Content type for print jobs
+ */
+export type PrintContentType = "text" | "html";
+
+/**
  * Print job representing a formatted log ready for printing
  */
 export interface PrintJob {
@@ -46,6 +51,8 @@ export interface PrintJob {
   logEntry: LogEntry;
   /** Formatted content ready for printing */
   formattedContent: string;
+  /** Content type (text or html). Defaults to "text" for backward compatibility */
+  contentType?: PrintContentType;
   /** Job creation timestamp */
   createdAt: Date;
   /** Job status */
@@ -115,6 +122,38 @@ export interface PrinterStatus {
 export type PrinterType = "cups" | "escpos" | "serial" | "mock" | "native" | "custom";
 
 /**
+ * Output format for log formatting
+ */
+export type OutputFormat = "text" | "json" | "html";
+
+/**
+ * HTML format configuration
+ */
+export interface HtmlFormatConfig {
+  outputFormat: "html";
+  /** Custom HTML template path (optional) */
+  template?: string;
+  /** Custom CSS path (optional) */
+  css?: string;
+  /** Font family name to use */
+  fontFamily?: string;
+  /** Path to custom font file (.ttf, .otf, .woff, .woff2) */
+  fontPath?: string;
+  /** Base font size in pixels */
+  fontSize?: number;
+  /** Page width in mm (for PDF conversion) */
+  pageWidth?: number;
+  /** Whether to include timestamp in output */
+  includeTimestamp?: boolean;
+  /** Whether to include source in output */
+  includeSource?: boolean;
+  /** Whether to include log level in output */
+  includeLevel?: boolean;
+  /** Max line width for text wrapping */
+  maxLineWidth?: number;
+}
+
+/**
  * Discovered printer from OS printer discovery
  */
 export interface DiscoveredPrinter {
@@ -151,12 +190,27 @@ export interface SystemConfig {
     retryDelayMs: number;
   };
   /** Log formatting options */
-  format: {
-    /** Output format: "text" for human-readable, "json" for pretty-printed JSON */
-    outputFormat: "text" | "json";
-    maxLineWidth: number;
-    includeTimestamp: boolean;
-    includeSource: boolean;
-    includeLevel: boolean;
-  };
+  format: TextFormatConfig | JsonFormatConfig | HtmlFormatConfig;
+}
+
+/**
+ * Text format configuration
+ */
+export interface TextFormatConfig {
+  outputFormat: "text";
+  maxLineWidth: number;
+  includeTimestamp: boolean;
+  includeSource: boolean;
+  includeLevel: boolean;
+}
+
+/**
+ * JSON format configuration
+ */
+export interface JsonFormatConfig {
+  outputFormat: "json";
+  maxLineWidth: number;
+  includeTimestamp?: boolean;
+  includeSource?: boolean;
+  includeLevel?: boolean;
 }

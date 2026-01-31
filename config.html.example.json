@@ -1,0 +1,39 @@
+{
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "printer": {
+    "type": "cups",
+    "options": {
+      "printerName": "Your_Printer_Name",
+      "paperSize": "a4",
+      "htmlConverter": "weasyprint"
+    }
+  },
+  "queue": {
+    "maxSize": 1000,
+    "retryAttempts": 3,
+    "retryDelayMs": 1000
+  },
+  "format": {
+    "outputFormat": "html",
+    "fontFamily": "MyCustomFont",
+    "fontPath": "./fonts/MyFont.ttf",
+    "fontSize": 14,
+    "pageWidth": 210,
+    "includeTimestamp": true,
+    "includeSource": true,
+    "includeLevel": false,
+    "maxLineWidth": 80
+  },
+  "storage": {
+    "enabled": true,
+    "type": "sqlite",
+    "path": "./data/logs.db"
+  },
+  "ui": {
+    "enabled": true,
+    "wsPath": "/ws/ui"
+  }
+}

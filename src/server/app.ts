@@ -13,11 +13,13 @@ import { TypedEventEmitter, createPrintJob } from "../core/index.js";
 import {
   PrintQueue,
   DefaultFormatter,
+  HtmlFormatter,
   printerRegistry,
   tryRegisterSerialPrinter,
   tryRegisterEscposPrinter,
   tryRegisterNativePrinter,
 } from "../printers/index.js";
+import type { LogFormatterPlugin, PrintContentType } from "../core/index.js";
 import { SqliteStorage, QueuePersistenceHandler } from "../storage/index.js";
 import { HttpReceiver } from "./http-server.js";
 import { WebSocketReceiver } from "./websocket-server.js";
@@ -95,7 +97,7 @@ export class LogPrintApp {
   private httpReceiver: HttpReceiver;
   private wsReceiver: WebSocketReceiver;
   private printQueue: PrintQueue;
-  private formatter: DefaultFormatter;
+  private formatter: LogFormatterPlugin & { getContentType?: () => PrintContentType };
   private printer: PrinterPlugin | null = null;
   private storage: StoragePlugin | null = null;
   private queueStorage: QueuePersistencePlugin | null = null;
@@ -111,7 +113,17 @@ export class LogPrintApp {
     this.httpReceiver = new HttpReceiver();
     this.wsReceiver = new WebSocketReceiver();
     this.printQueue = new PrintQueue(this.config.queue);
-    this.formatter = new DefaultFormatter();
+    this.formatter = this.createFormatter();
+  }
+
+  /**
+   * Create the appropriate formatter based on config
+   */
+  private createFormatter(): LogFormatterPlugin & { getContentType?: () => PrintContentType } {
+    if (this.config.format?.outputFormat === "html") {
+      return new HtmlFormatter();
+    }
+    return new DefaultFormatter();
   }
 
   /**
@@ -398,7 +410,8 @@ export class LogPrintApp {
 
     // Format and print
     const formattedContent = this.formatter.format(entry);
-    const job = createPrintJob(entry, formattedContent);
+    const contentType = this.formatter.getContentType?.() ?? "text";
+    const job = createPrintJob(entry, formattedContent, contentType);
     this.eventBus.emit("log:formatted", job);
     const enqueued = this.printQueue.enqueue(job);
 
