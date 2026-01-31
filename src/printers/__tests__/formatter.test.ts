@@ -176,6 +176,23 @@ describe("DefaultFormatter", () => {
     });
   });
 
+  describe("getContentType", () => {
+    test("returns 'text' for text format", async () => {
+      await formatter.initialize(mockEventBus, createConfig({ outputFormat: "text" }));
+      expect(formatter.getContentType()).toBe("text");
+    });
+
+    test("returns 'json' for json format", async () => {
+      await formatter.initialize(mockEventBus, createConfig({ outputFormat: "json" }));
+      expect(formatter.getContentType()).toBe("json");
+    });
+
+    test("returns 'text' by default", async () => {
+      await formatter.initialize(mockEventBus, createConfig());
+      expect(formatter.getContentType()).toBe("text");
+    });
+  });
+
   describe("default values", () => {
     test("uses text format by default", async () => {
       await formatter.initialize(mockEventBus, {

@@ -1,6 +1,7 @@
 import type {
   LogEntry,
   LogFormatterPlugin,
+  PrintContentType,
   SystemConfig,
   TypedEventEmitter,
 } from "../core/index.js";
@@ -50,6 +51,13 @@ export class DefaultFormatter implements LogFormatterPlugin {
 
   async shutdown(): Promise<void> {
     // Nothing to clean up
+  }
+
+  /**
+   * Get the content type produced by this formatter
+   */
+  getContentType(): PrintContentType {
+    return this.config.outputFormat === "json" ? "json" : "text";
   }
 
   /**

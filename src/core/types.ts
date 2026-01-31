@@ -39,7 +39,7 @@ export type LogLevel = string;
 /**
  * Content type for print jobs
  */
-export type PrintContentType = "text" | "html";
+export type PrintContentType = "text" | "json" | "html";
 
 /**
  * Print job representing a formatted log ready for printing

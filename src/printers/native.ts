@@ -11,7 +11,7 @@ import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { BasePrinter } from "./base-printer.js";
 import { printerRegistry } from "./registry.js";
-import type { PrintJob, PrinterType, PrinterStatus } from "../core/types.js";
+import type { PrintJob, PrinterType, PrinterStatus, PrintContentType } from "../core/types.js";
 
 // Dynamic import types for @printers/printers
 type PrintersModule = typeof import("@printers/printers");
@@ -34,6 +34,21 @@ async function loadPrintersModule(): Promise<PrintersModule> {
  * Default directory for persisting print files
  */
 const DEFAULT_PERSIST_DIR = "./data/prints";
+
+/**
+ * Get file extension based on content type
+ */
+function getFileExtension(contentType?: PrintContentType): string {
+  switch (contentType) {
+    case "json":
+      return ".json";
+    case "html":
+      return ".html";
+    case "text":
+    default:
+      return ".txt";
+  }
+}
 
 /**
  * Options for NativePrinter
@@ -195,8 +210,9 @@ export class NativePrinter extends BasePrinter {
       .replaceAll(/^_+|_+$/g, "")
       .slice(0, 64);
 
+    const ext = getFileExtension(job.contentType);
     const tempDir = await mkdtemp(join(tmpdir(), "log-dot-print-"));
-    const tempFile = join(tempDir, `print-${safeJobId || "job"}.txt`);
+    const tempFile = join(tempDir, `print-${safeJobId || "job"}${ext}`);
 
     try {
       await writeFile(tempFile, job.formattedContent, { encoding: "utf8", flag: "wx" });
@@ -222,7 +238,7 @@ export class NativePrinter extends BasePrinter {
       // Persist print file (always enabled with default directory)
       await mkdir(this.options.persistDir, { recursive: true });
       const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
-      const persistFile = join(this.options.persistDir, `${timestamp}_${safeJobId}.txt`);
+      const persistFile = join(this.options.persistDir, `${timestamp}_${safeJobId}${ext}`);
       await copyFile(tempFile, persistFile);
       job.filePath = persistFile;
       console.log(`[NativePrinter] Print file persisted: ${persistFile}`);

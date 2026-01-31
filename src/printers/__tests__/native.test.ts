@@ -313,5 +313,73 @@ describe("NativePrinter", () => {
 
       await printer.shutdown();
     });
+
+    test("uses .txt extension for text contentType", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("text-ext-test");
+      job.contentType = "text";
+      await printer.print(job);
+
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toMatch(/\.txt$/);
+
+      await printer.shutdown();
+    });
+
+    test("uses .json extension for json contentType", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("json-ext-test");
+      job.contentType = "json";
+      await printer.print(job);
+
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toMatch(/\.json$/);
+
+      await printer.shutdown();
+    });
+
+    test("uses .html extension for html contentType", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("html-ext-test");
+      job.contentType = "html";
+      await printer.print(job);
+
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toMatch(/\.html$/);
+
+      await printer.shutdown();
+    });
+
+    test("uses .txt extension when contentType is undefined", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("no-content-type-test");
+      // contentType is not set (undefined)
+      await printer.print(job);
+
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toMatch(/\.txt$/);
+
+      await printer.shutdown();
+    });
   });
 });
