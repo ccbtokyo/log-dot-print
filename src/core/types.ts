@@ -152,6 +152,8 @@ export interface SystemConfig {
   };
   /** Log formatting options */
   format: {
+    /** Output format: "text" for human-readable, "json" for pretty-printed JSON */
+    outputFormat: "text" | "json";
     maxLineWidth: number;
     includeTimestamp: boolean;
     includeSource: boolean;

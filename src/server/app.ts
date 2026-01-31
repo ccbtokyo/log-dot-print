@@ -69,6 +69,7 @@ export const defaultConfig: AppConfig = {
     retryDelayMs: 1000,
   },
   format: {
+    outputFormat: "text",
     maxLineWidth: 80,
     includeTimestamp: true,
     includeSource: true,
