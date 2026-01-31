@@ -7,7 +7,7 @@ SERVER_URL="${1:-http://localhost:3000}"
 echo "Sending test logs to $SERVER_URL..."
 
 # Single log
-curl -s -X POST "$SERVER_URL/log" \
+curl -s -X POST "$SERVER_URL/api/log" \
   -H "Content-Type: application/json" \
   -d '{
     "source": "AI_Character_Alpha",
@@ -19,7 +19,7 @@ curl -s -X POST "$SERVER_URL/log" \
 sleep 0.5
 
 # Another single log
-curl -s -X POST "$SERVER_URL/log" \
+curl -s -X POST "$SERVER_URL/api/log" \
   -H "Content-Type: application/json" \
   -d '{
     "source": "AI_Character_Alpha",
@@ -31,7 +31,7 @@ curl -s -X POST "$SERVER_URL/log" \
 sleep 0.5
 
 # Batch logs
-curl -s -X POST "$SERVER_URL/logs" \
+curl -s -X POST "$SERVER_URL/api/logs" \
   -H "Content-Type: application/json" \
   -d '[
     {"source": "AI_Character_Beta", "level": "emotion", "message": "Feeling curious about the new artifact"},
