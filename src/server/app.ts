@@ -131,6 +131,18 @@ export class LogPrintApp {
    */
   async start(): Promise<void> {
     console.log("[App] Starting Log-Dot-Print...");
+    console.log(
+      "[App] Config:",
+      JSON.stringify(
+        {
+          printer: this.config.printer,
+          format: this.config.format,
+          server: this.config.server,
+        },
+        null,
+        2,
+      ),
+    );
 
     // Try to register optional printers (native module dependencies)
     // These may fail in bundled environments (e.g., Windows EXE) where
@@ -418,6 +430,9 @@ export class LogPrintApp {
     // Format and print
     const formattedContent = this.formatter.format(entry);
     const contentType = this.formatter.getContentType?.() ?? "text";
+    console.log(
+      `[App] contentType=${contentType}, outputFormat=${this.config.format?.outputFormat}`,
+    );
     const job = createPrintJob(entry, formattedContent, contentType);
     this.eventBus.emit("log:formatted", job);
     const enqueued = this.printQueue.enqueue(job);

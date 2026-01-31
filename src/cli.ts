@@ -12,11 +12,15 @@ async function loadConfig(configPath?: string): Promise<DeepPartial<SystemConfig
   try {
     const fullPath = resolve(process.cwd(), pathToLoad);
     const content = await readFile(fullPath, "utf-8");
+    const parsed = JSON.parse(content);
     console.log(`[CLI] Loaded config from ${pathToLoad}`);
-    return JSON.parse(content);
+    return parsed;
   } catch (error) {
-    if (configPath) {
-      // Only warn if explicitly specified
+    if (error instanceof SyntaxError) {
+      // JSON parse error - always warn about invalid JSON
+      console.error(`[CLI] Invalid JSON in ${pathToLoad}:`, error.message);
+    } else if (configPath) {
+      // File not found or other error - only warn if explicitly specified
       console.warn(`[CLI] Could not load config from ${configPath}:`, error);
     }
     return {};
