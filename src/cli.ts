@@ -6,16 +6,19 @@ import type { SystemConfig } from "./core/index.js";
 import { LogPrintApp, type DeepPartial } from "./server/app.js";
 
 async function loadConfig(configPath?: string): Promise<DeepPartial<SystemConfig>> {
-  if (!configPath) {
-    return {};
-  }
+  const defaultPath = "config.json";
+  const pathToLoad = configPath ?? defaultPath;
 
   try {
-    const fullPath = resolve(process.cwd(), configPath);
+    const fullPath = resolve(process.cwd(), pathToLoad);
     const content = await readFile(fullPath, "utf-8");
+    console.log(`[CLI] Loaded config from ${pathToLoad}`);
     return JSON.parse(content);
   } catch (error) {
-    console.warn(`[CLI] Could not load config from ${configPath}:`, error);
+    if (configPath) {
+      // Only warn if explicitly specified
+      console.warn(`[CLI] Could not load config from ${configPath}:`, error);
+    }
     return {};
   }
 }
