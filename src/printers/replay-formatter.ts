@@ -160,28 +160,16 @@ export class ReplayFormatter implements LogFormatterPlugin {
     .message.player {
       text-align: right;
       color: ${safePlayerColor};
-    }
-    .message-header {
-      font-size: 0.85em;
-      color: #666;
-      margin-bottom: 4px;
-    }
-    .message-body {
-      white-space: pre-wrap;
-      word-wrap: break-word;
     }`;
 
     const messagesHtml = messages
       .map((msg) => {
         const typeClass = msg.type === "player" ? "player" : "npc";
         const timeStr = this.formatTime(msg.timestamp);
-        const header = `${this.escapeHtml(timeStr)}｜${this.escapeHtml(msg.username)}`;
+        const content = `[${this.escapeHtml(msg.username)}] ${this.escapeHtml(timeStr)} | ${this.escapeHtml(msg.message)}`;
 
         return `
-    <div class="message ${typeClass}">
-      <div class="message-header">${header}</div>
-      <div class="message-body">${this.escapeHtml(msg.message)}</div>
-    </div>`;
+    <div class="message ${typeClass}">${content}</div>`;
       })
       .join("");
 

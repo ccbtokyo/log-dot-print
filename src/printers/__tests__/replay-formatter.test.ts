@@ -119,7 +119,7 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("やあ!");
     });
 
-    test("renders message header in correct format (HH:mm｜name)", async () => {
+    test("renders message in correct format ([name] HH:mm | message)", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(
@@ -134,10 +134,11 @@ describe("ReplayFormatter", () => {
       );
       const html = formatter.format(entry);
 
-      // Should contain "10:30｜NPC1" (with full-width vertical bar)
+      // Should contain "[NPC1] 10:30 | Hello" format
+      expect(html).toContain("[NPC1]");
       expect(html).toContain("10:30");
-      expect(html).toContain("｜");
-      expect(html).toContain("NPC1");
+      expect(html).toContain(" | ");
+      expect(html).toContain("Hello");
     });
 
     test("renders multiple messages in order", async () => {
