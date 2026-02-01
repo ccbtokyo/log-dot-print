@@ -122,7 +122,10 @@ export class ImageConverter {
 
     const playwright = await loadPlaywrightModule();
     console.log("[ImageConverter] Launching Chromium browser...");
-    this.browser = await playwright.chromium.launch({
+
+    // Add timeout to browser launch
+    const launchTimeout = 30000; // 30 seconds
+    const launchPromise = playwright.chromium.launch({
       headless: true,
       args: [
         "--no-sandbox",
@@ -132,7 +135,23 @@ export class ImageConverter {
       ],
     });
 
-    console.log("[ImageConverter] Browser launched");
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(
+          new Error(
+            `Browser launch timed out after ${launchTimeout}ms. Chromium may not be installed correctly. Run: bunx playwright install chromium`,
+          ),
+        );
+      }, launchTimeout);
+    });
+
+    try {
+      this.browser = await Promise.race([launchPromise, timeoutPromise]);
+      console.log("[ImageConverter] Browser launched");
+    } catch (error) {
+      console.error("[ImageConverter] Failed to launch browser:", error);
+      throw error;
+    }
   }
 
   /**
