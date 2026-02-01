@@ -3,6 +3,7 @@ export * from "./base-printer.js";
 export * from "./queue.js";
 export * from "./formatter.js";
 export * from "./html-formatter.js";
+export * from "./replay-formatter.js";
 export * from "./registry.js";
 export * from "./discovery.js";
 

@@ -14,6 +14,7 @@ import {
   PrintQueue,
   DefaultFormatter,
   HtmlFormatter,
+  ReplayFormatter,
   printerRegistry,
   tryRegisterSerialPrinter,
   tryRegisterEscposPrinter,
@@ -122,6 +123,9 @@ export class LogPrintApp {
   private createFormatter(): LogFormatterPlugin & { getContentType?: () => PrintContentType } {
     if (this.config.format?.outputFormat === "html") {
       return new HtmlFormatter();
+    }
+    if (this.config.format?.outputFormat === "replay") {
+      return new ReplayFormatter();
     }
     return new DefaultFormatter();
   }

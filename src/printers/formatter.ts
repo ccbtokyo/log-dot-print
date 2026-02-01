@@ -40,12 +40,18 @@ export class DefaultFormatter implements LogFormatterPlugin {
         ? format.outputFormat
         : "text";
 
+    // Only text and json formats have these properties
+    const hasTextJsonProps = format?.outputFormat === "text" || format?.outputFormat === "json";
+
     this.config = {
       outputFormat,
-      maxLineWidth: format?.maxLineWidth ?? 80,
-      includeTimestamp: format?.includeTimestamp ?? true,
-      includeSource: format?.includeSource ?? true,
-      includeLevel: format?.includeLevel ?? false,
+      maxLineWidth: hasTextJsonProps && "maxLineWidth" in format ? format.maxLineWidth : 80,
+      includeTimestamp:
+        hasTextJsonProps && "includeTimestamp" in format ? (format.includeTimestamp ?? true) : true,
+      includeSource:
+        hasTextJsonProps && "includeSource" in format ? (format.includeSource ?? true) : true,
+      includeLevel:
+        hasTextJsonProps && "includeLevel" in format ? (format.includeLevel ?? false) : false,
     };
   }
 

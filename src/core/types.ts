@@ -124,7 +124,7 @@ export type PrinterType = "cups" | "escpos" | "serial" | "mock" | "native" | "cu
 /**
  * Output format for log formatting
  */
-export type OutputFormat = "text" | "json" | "html";
+export type OutputFormat = "text" | "json" | "html" | "replay";
 
 /**
  * HTML format configuration
@@ -151,6 +151,27 @@ export interface HtmlFormatConfig {
   includeLevel?: boolean;
   /** Max line width for text wrapping */
   maxLineWidth?: number;
+}
+
+/**
+ * Replay format configuration for chat history formatting
+ */
+export interface ReplayFormatConfig {
+  outputFormat: "replay";
+  /** Font family name to use */
+  fontFamily?: string;
+  /** Path to custom font file (.ttf, .otf, .woff, .woff2) */
+  fontPath?: string;
+  /** Base font size in pixels */
+  fontSize?: number;
+  /** Page width in mm (for PDF conversion) */
+  pageWidth?: number;
+  /** Custom CSS (optional) */
+  css?: string;
+  /** Color for NPC messages */
+  npcColor?: string;
+  /** Color for Player messages */
+  playerColor?: string;
 }
 
 /**
@@ -190,7 +211,7 @@ export interface SystemConfig {
     retryDelayMs: number;
   };
   /** Log formatting options */
-  format: TextFormatConfig | JsonFormatConfig | HtmlFormatConfig;
+  format: TextFormatConfig | JsonFormatConfig | HtmlFormatConfig | ReplayFormatConfig;
 }
 
 /**
