@@ -121,6 +121,7 @@ export class ImageConverter {
     }
 
     const playwright = await loadPlaywrightModule();
+    console.log("[ImageConverter] Launching Chromium browser...");
     this.browser = await playwright.chromium.launch({
       headless: true,
       args: [
@@ -252,10 +253,12 @@ export class ImageConverter {
 export async function createImageConverter(
   options?: Partial<ImageConverterOptions>,
 ): Promise<ImageConverter | null> {
+  console.log("[ImageConverter] Creating image converter...");
   const available = await ImageConverter.isAvailable();
   if (!available) {
     console.warn("[ImageConverter] playwright not available, image conversion disabled");
     return null;
   }
+  console.log("[ImageConverter] Image converter created");
   return new ImageConverter(options);
 }
