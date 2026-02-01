@@ -1,0 +1,39 @@
+{
+  "server": {
+    "port": 3336,
+    "host": "0.0.0.0"
+  },
+  "printer": {
+    "type": "native",
+    "options": {
+      "printerName": "EPSON VP-F4400N"
+    }
+  },
+  "queue": {
+    "maxSize": 1000,
+    "retryAttempts": 3,
+    "retryDelayMs": 1000
+  },
+  "format": {
+    "outputFormat": "replay",
+    "fontFamily": "Noto Sans JP",
+    "fontSize": 14,
+    "pageWidth": 355,
+    "sideMargin": 10
+  },
+  "conversion": {
+    "enabled": true,
+    "format": "png",
+    "width": 2835,
+    "grayscale": false
+  },
+  "storage": {
+    "enabled": true,
+    "type": "sqlite",
+    "path": "./data/logs.db"
+  },
+  "ui": {
+    "enabled": true,
+    "wsPath": "/ws/ui"
+  }
+}

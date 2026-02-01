@@ -39,7 +39,7 @@ export type LogLevel = string;
 /**
  * Content type for print jobs
  */
-export type PrintContentType = "text" | "json" | "html";
+export type PrintContentType = "text" | "json" | "html" | "image";
 
 /**
  * Print job representing a formatted log ready for printing
@@ -51,7 +51,9 @@ export interface PrintJob {
   logEntry: LogEntry;
   /** Formatted content ready for printing */
   formattedContent: string;
-  /** Content type (text or html). Defaults to "text" for backward compatibility */
+  /** Binary content for image printing */
+  binaryContent?: Buffer;
+  /** Content type (text, html, or image). Defaults to "text" for backward compatibility */
   contentType?: PrintContentType;
   /** Job creation timestamp */
   createdAt: Date;
@@ -193,6 +195,20 @@ export interface DiscoveredPrinter {
 }
 
 /**
+ * Image conversion configuration for dot impact printer support
+ */
+export interface ImageConversionConfig {
+  /** Whether to enable HTML to image conversion */
+  enabled: boolean;
+  /** Output image format */
+  format: "png" | "bmp";
+  /** Image width in pixels (default: 2835px for 15" continuous paper printable area) */
+  width?: number;
+  /** Whether to convert to grayscale for dot impact printers */
+  grayscale?: boolean;
+}
+
+/**
  * Configuration for the log printer system
  */
 export interface SystemConfig {
@@ -214,6 +230,8 @@ export interface SystemConfig {
   };
   /** Log formatting options */
   format: TextFormatConfig | JsonFormatConfig | HtmlFormatConfig | ReplayFormatConfig;
+  /** HTML to image conversion for dot impact printers */
+  conversion?: ImageConversionConfig;
 }
 
 /**

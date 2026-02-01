@@ -44,6 +44,8 @@ function getFileExtension(contentType?: PrintContentType): string {
       return ".json";
     case "html":
       return ".html";
+    case "image":
+      return ".png";
     case "text":
     default:
       return ".txt";
@@ -201,10 +203,17 @@ export class NativePrinter extends BasePrinter {
       throw new Error("Printer not connected");
     }
 
-    if (typeof job.formattedContent !== "string") {
+    // Determine content to write: binary for images, string for text/html/json
+    const isImageContent = job.contentType === "image" && job.binaryContent;
+    const contentBuffer = isImageContent
+      ? job.binaryContent!
+      : Buffer.from(job.formattedContent ?? "", "utf8");
+
+    if (!isImageContent && typeof job.formattedContent !== "string") {
       throw new Error("Invalid job.formattedContent");
     }
-    const bytes = Buffer.byteLength(job.formattedContent, "utf8");
+
+    const bytes = contentBuffer.length;
     if (bytes > MAX_PRINT_BYTES) {
       throw new Error(`Print content too large: ${bytes} bytes`);
     }
@@ -237,7 +246,12 @@ export class NativePrinter extends BasePrinter {
     const tempFile = join(tempDir, `print-${safeJobId || "job"}${ext}`);
 
     try {
-      await writeFile(tempFile, job.formattedContent, { encoding: "utf8", flag: "wx" });
+      // Write content: binary for images, utf8 for text/html/json
+      if (isImageContent) {
+        await writeFile(tempFile, contentBuffer, { flag: "wx" });
+      } else {
+        await writeFile(tempFile, job.formattedContent, { encoding: "utf8", flag: "wx" });
+      }
 
       // Build print options
       const printOptions: SimplePrintOptions = {

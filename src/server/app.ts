@@ -19,7 +19,9 @@ import {
   tryRegisterSerialPrinter,
   tryRegisterEscposPrinter,
   tryRegisterNativePrinter,
+  createImageConverter,
 } from "../printers/index.js";
+import type { ImageConverter } from "../printers/index.js";
 import type { LogFormatterPlugin, PrintContentType } from "../core/index.js";
 import { SqliteStorage, QueuePersistenceHandler } from "../storage/index.js";
 import { HttpReceiver } from "./http-server.js";
@@ -107,6 +109,7 @@ export class LogPrintApp {
   private queueController: QueueController | null = null;
   private uiWebSocketHandler: UIWebSocketHandler | null = null;
   private staticMiddleware: StaticMiddleware | null = null;
+  private imageConverter: ImageConverter | null = null;
 
   constructor(config: DeepPartial<AppConfig> = {}) {
     this.config = this.mergeConfig(defaultConfig, config);
@@ -177,6 +180,20 @@ export class LogPrintApp {
       console.log(
         `[App] Storage enabled (${this.config.storage.type}): ${this.config.storage.path}`,
       );
+    }
+
+    // Initialize image converter if enabled
+    if (this.config.conversion?.enabled) {
+      const conversionConfig = this.config.conversion;
+      this.imageConverter = await createImageConverter({
+        format: conversionConfig.format,
+        width: conversionConfig.width,
+        grayscale: conversionConfig.grayscale,
+      });
+      if (this.imageConverter) {
+        await this.imageConverter.initialize();
+        console.log("[App] Image conversion enabled");
+      }
     }
 
     // Initialize formatter
@@ -293,6 +310,11 @@ export class LogPrintApp {
     // Stop storage
     if (this.storage) {
       await this.storage.shutdown();
+    }
+
+    // Stop image converter
+    if (this.imageConverter) {
+      await this.imageConverter.shutdown();
     }
 
     // Stop Bun server
@@ -433,11 +455,26 @@ export class LogPrintApp {
 
     // Format and print
     const formattedContent = this.formatter.format(entry);
-    const contentType = this.formatter.getContentType?.() ?? "text";
+    let contentType = this.formatter.getContentType?.() ?? "text";
     console.log(
       `[App] contentType=${contentType}, outputFormat=${this.config.format?.outputFormat}`,
     );
     const job = createPrintJob(entry, formattedContent, contentType);
+
+    // Convert HTML to image if converter is enabled
+    if (this.imageConverter && contentType === "html") {
+      try {
+        const imageBuffer = await this.imageConverter.convert(formattedContent);
+        job.binaryContent = imageBuffer;
+        job.contentType = "image";
+        contentType = "image";
+        console.log(`[App] HTML converted to image (${imageBuffer.length} bytes)`);
+      } catch (error) {
+        console.error("[App] Failed to convert HTML to image:", error);
+        // Fall back to original HTML content
+      }
+    }
+
     this.eventBus.emit("log:formatted", job);
     const enqueued = this.printQueue.enqueue(job);
 
@@ -483,6 +520,7 @@ export class LogPrintApp {
       format: { ...defaults.format, ...overrides.format },
       storage: overrides.storage ? { ...defaults.storage, ...overrides.storage } : defaults.storage,
       ui: overrides.ui !== undefined ? { ...defaults.ui, ...overrides.ui } : defaults.ui,
+      conversion: overrides.conversion,
     };
   }
 

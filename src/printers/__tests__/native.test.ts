@@ -381,5 +381,52 @@ describe("NativePrinter", () => {
 
       await printer.shutdown();
     });
+
+    test("uses .png extension for image contentType", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("image-ext-test");
+      job.contentType = "image";
+      // PNG magic bytes
+      job.binaryContent = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      await printer.print(job);
+
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toMatch(/\.png$/);
+
+      // Verify binary content was written
+      const content = await readFile(job.filePath!);
+      expect(content[0]).toBe(0x89);
+      expect(content[1]).toBe(0x50);
+      expect(content[2]).toBe(0x4e);
+      expect(content[3]).toBe(0x47);
+
+      await printer.shutdown();
+    });
+
+    test("writes binary content for image contentType", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const testImageData = Buffer.alloc(100, 0xaa);
+      const job = createTestPrintJob("binary-content-test");
+      job.contentType = "image";
+      job.binaryContent = testImageData;
+      await printer.print(job);
+
+      // Verify binary content was written correctly
+      const content = await readFile(job.filePath!);
+      expect(content.length).toBe(100);
+      expect(content.every((b) => b === 0xaa)).toBe(true);
+
+      await printer.shutdown();
+    });
   });
 });
