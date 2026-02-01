@@ -166,6 +166,8 @@ export interface ReplayFormatConfig {
   fontSize?: number;
   /** Page width in mm (for PDF conversion) */
   pageWidth?: number;
+  /** Side margin in mm (for dot impact printer punch rails) */
+  sideMargin?: number;
   /** Custom CSS (optional) */
   css?: string;
   /** Color for NPC messages */

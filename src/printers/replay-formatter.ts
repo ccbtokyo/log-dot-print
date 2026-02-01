@@ -20,15 +20,19 @@ interface ChatMessage {
 /**
  * Default re:play format configuration
  */
-const DEFAULT_CONFIG: Required<Omit<ReplayFormatConfig, "outputFormat" | "css" | "fontPath">> & {
+const DEFAULT_CONFIG: Required<
+  Omit<ReplayFormatConfig, "outputFormat" | "css" | "fontPath" | "sideMargin">
+> & {
   outputFormat: "replay";
   css?: string;
   fontPath?: string;
+  sideMargin: number;
 } = {
   outputFormat: "replay",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   fontSize: 14,
   pageWidth: 80,
+  sideMargin: 10,
   npcColor: "#333",
   playerColor: "#333",
 };
@@ -102,7 +106,8 @@ export class ReplayFormatter implements LogFormatterPlugin {
    * Render chat messages as HTML
    */
   private renderChatHtml(messages: ChatMessage[]): string {
-    const { fontFamily, fontSize, pageWidth, npcColor, playerColor, fontPath } = this.config;
+    const { fontFamily, fontSize, pageWidth, sideMargin, npcColor, playerColor, fontPath } =
+      this.config;
 
     const safeFontFamily = this.sanitizeFontFamilyList(fontFamily);
     const safeFontSize = this.sanitizeNumber(fontSize, DEFAULT_CONFIG.fontSize, {
@@ -113,6 +118,11 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const safePageWidth = this.sanitizeNumber(pageWidth, DEFAULT_CONFIG.pageWidth, {
       min: 10,
       max: 300,
+      integer: true,
+    });
+    const safeSideMargin = this.sanitizeNumber(sideMargin, DEFAULT_CONFIG.sideMargin, {
+      min: 0,
+      max: 50,
       integer: true,
     });
     const safeNpcColor = this.sanitizeHexColor(npcColor, DEFAULT_CONFIG.npcColor);
@@ -133,7 +143,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const css = `
     @page {
       size: ${safePageWidth}mm auto;
-      margin: 10mm;
+      margin: 10mm ${safeSideMargin}mm;
     }
     * {
       box-sizing: border-box;
@@ -143,7 +153,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       font-size: ${safeFontSize}px;
       line-height: 1.6;
       margin: 0;
-      padding: 20px;
+      padding: 20px ${safeSideMargin}mm;
       background: #fff;
     }
     .chat-container {
@@ -330,6 +340,12 @@ export class ReplayFormatter implements LogFormatterPlugin {
       integer: true,
     });
 
+    const sideMargin = this.sanitizeNumber(replayConfig.sideMargin, DEFAULT_CONFIG.sideMargin, {
+      min: 0,
+      max: 50,
+      integer: true,
+    });
+
     const npcColor = this.sanitizeHexColor(replayConfig.npcColor, DEFAULT_CONFIG.npcColor);
     const playerColor = this.sanitizeHexColor(replayConfig.playerColor, DEFAULT_CONFIG.playerColor);
 
@@ -341,6 +357,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       fontFamily,
       fontSize,
       pageWidth,
+      sideMargin,
       npcColor,
       playerColor,
       css,
