@@ -197,9 +197,12 @@ export class LogPrintApp {
     }
 
     // Initialize formatter
+    console.log("[App] Initializing formatter...");
     await this.formatter.initialize(this.eventBus, this.config);
+    console.log("[App] Formatter initialized");
 
     // Initialize printer
+    console.log("[App] Creating printer...");
     const printerOptions = {
       ...this.config.printer.options,
       getPrinterNameFromStorage: async () => {
@@ -208,7 +211,9 @@ export class LogPrintApp {
       },
     };
     this.printer = printerRegistry.create(this.config.printer.type, printerOptions);
+    console.log("[App] Printer created, initializing...");
     await this.printer.initialize(this.eventBus, this.config);
+    console.log("[App] Printer initialized");
 
     // Initialize print queue
     this.printQueue.initialize(this.printer, this.eventBus);
