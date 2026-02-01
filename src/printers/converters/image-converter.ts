@@ -11,7 +11,7 @@
  * @related src/printers/native.ts (NativePrinter)
  * @related src/printers/replay-formatter.ts (ReplayFormatter)
  * @related src/core/types.ts (ImageConversionConfig)
- * @related scripts/playwright-render.js (Windows subprocess helper)
+ * @related scripts/playwright-render.cjs (Windows subprocess helper)
  */
 
 import { resolve, dirname } from "node:path";
@@ -84,7 +84,7 @@ function getHelperScriptPath(): string {
   // Get the directory of this module
   const currentDir = dirname(fileURLToPath(import.meta.url));
   // Navigate to scripts directory from src/printers/converters
-  return resolve(currentDir, "../../../scripts/playwright-render.js");
+  return resolve(currentDir, "../../../scripts/playwright-render.cjs");
 }
 
 /**
