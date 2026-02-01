@@ -183,7 +183,9 @@ export class LogPrintApp {
     }
 
     // Initialize image converter if enabled
+    console.log("[App] Checking image converter...");
     if (this.config.conversion?.enabled) {
+      console.log("[App] Image converter enabled, initializing...");
       const conversionConfig = this.config.conversion;
       this.imageConverter = await createImageConverter({
         format: conversionConfig.format,
@@ -194,6 +196,8 @@ export class LogPrintApp {
         await this.imageConverter.initialize();
         console.log("[App] Image conversion enabled");
       }
+    } else {
+      console.log("[App] Image converter not enabled, skipping");
     }
 
     // Initialize formatter
