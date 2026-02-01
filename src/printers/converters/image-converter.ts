@@ -74,9 +74,12 @@ async function loadPlaywrightModule(): Promise<PlaywrightModule> {
   try {
     // Dynamic import to avoid bundling playwright
     const moduleName = "playwright";
+    console.log("[ImageConverter] Loading playwright module...");
     playwrightModule = (await import(moduleName)) as PlaywrightModule;
+    console.log("[ImageConverter] Playwright module loaded");
     return playwrightModule;
   } catch (error) {
+    console.error("[ImageConverter] Failed to load playwright:", error);
     throw new Error("playwright is not installed", { cause: error });
   }
 }
@@ -230,10 +233,13 @@ export class ImageConverter {
    * Check if playwright is available
    */
   static async isAvailable(): Promise<boolean> {
+    console.log("[ImageConverter] Checking playwright availability...");
     try {
       await loadPlaywrightModule();
+      console.log("[ImageConverter] Playwright is available");
       return true;
     } catch {
+      console.log("[ImageConverter] Playwright is not available");
       return false;
     }
   }
