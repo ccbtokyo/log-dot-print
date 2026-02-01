@@ -143,7 +143,9 @@ export class NativePrinter extends BasePrinter {
   }
 
   protected async connect(): Promise<void> {
+    console.log("[NativePrinter] Loading printers module...");
     const { getPrinterByName, getDefaultPrinter } = await loadPrintersModule();
+    console.log("[NativePrinter] Printers module loaded");
 
     if (this.options.printerName) {
       // Avoid TOCTOU (exists -> fetch) by resolving the printer handle once.
@@ -155,6 +157,7 @@ export class NativePrinter extends BasePrinter {
       console.log(`[NativePrinter] Connected to ${this.printer.name}`);
     } else {
       // Use default printer
+      console.log("[NativePrinter] Getting default printer...");
       this.printer = await getDefaultPrinter();
       if (this.printer) {
         this.printerAvailable = true;
