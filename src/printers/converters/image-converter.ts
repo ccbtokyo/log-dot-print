@@ -5,10 +5,17 @@
  * Dot impact printers often have font rendering issues with HTML/text content,
  * but work reliably with rasterized images.
  *
+ * On Windows, uses Node.js subprocess to work around Bun + Playwright issue:
+ * https://github.com/oven-sh/bun/issues/23826
+ *
  * @related src/printers/native.ts (NativePrinter)
  * @related src/printers/replay-formatter.ts (ReplayFormatter)
  * @related src/core/types.ts (ImageConversionConfig)
+ * @related scripts/playwright-render.js (Windows subprocess helper)
  */
+
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Playwright types (dynamic import - playwright is optional)
 type Browser = {
@@ -64,6 +71,23 @@ type PlaywrightModule = {
 let playwrightModule: PlaywrightModule | null = null;
 
 /**
+ * Check if running on Windows
+ */
+function isWindows(): boolean {
+  return process.platform === "win32";
+}
+
+/**
+ * Get the path to the playwright-render.js helper script
+ */
+function getHelperScriptPath(): string {
+  // Get the directory of this module
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  // Navigate to scripts directory from src/printers/converters
+  return resolve(currentDir, "../../../scripts/playwright-render.js");
+}
+
+/**
  * Load playwright module dynamically
  */
 async function loadPlaywrightModule(): Promise<PlaywrightModule> {
@@ -85,15 +109,69 @@ async function loadPlaywrightModule(): Promise<PlaywrightModule> {
 }
 
 /**
+ * Render HTML to image using Node.js subprocess (for Windows)
+ */
+async function renderViaSubprocess(html: string, width: number): Promise<Buffer> {
+  const scriptPath = getHelperScriptPath();
+  console.log(`[ImageConverter] Using Node.js subprocess for Windows: ${scriptPath}`);
+
+  const input = JSON.stringify({ html, width });
+
+  const proc = Bun.spawn(["node", scriptPath], {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  // Write HTML to stdin using FileSink API
+  proc.stdin.write(input);
+  proc.stdin.flush();
+  proc.stdin.end();
+
+  // Wait for process to complete
+  const exitCode = await proc.exited;
+
+  // Read stdout
+  const stdout = await new Response(proc.stdout).text();
+  const stderr = await new Response(proc.stderr).text();
+
+  if (stderr) {
+    console.error("[ImageConverter] Subprocess stderr:", stderr);
+  }
+
+  if (exitCode !== 0) {
+    throw new Error(`Node.js subprocess failed with exit code ${exitCode}: ${stderr || stdout}`);
+  }
+
+  // Parse JSON response
+  let response;
+  try {
+    response = JSON.parse(stdout);
+  } catch {
+    throw new Error(`Invalid JSON response from subprocess: ${stdout}`);
+  }
+
+  if (!response.success) {
+    throw new Error(`Subprocess rendering failed: ${response.error}`);
+  }
+
+  // Decode base64 image
+  return Buffer.from(response.image, "base64");
+}
+
+/**
  * HTML to image converter using Playwright
  *
  * Uses headless Chromium to render HTML and capture as screenshot.
  * Suitable for dot impact printers that have font rendering issues.
+ *
+ * On Windows, uses Node.js subprocess to work around Bun + Playwright issue.
  */
 export class ImageConverter {
   private browser: Browser | null = null;
   private options: Required<ImageConverterOptions>;
   private initPromise: Promise<void> | null = null;
+  private useSubprocess: boolean;
 
   constructor(options: Partial<ImageConverterOptions> = {}) {
     this.options = {
@@ -101,12 +179,24 @@ export class ImageConverter {
       width: options.width ?? DEFAULT_OPTIONS.width,
       grayscale: options.grayscale ?? DEFAULT_OPTIONS.grayscale,
     };
+    this.useSubprocess = isWindows();
+
+    if (this.useSubprocess) {
+      console.log("[ImageConverter] Windows detected, will use Node.js subprocess for Playwright");
+    }
   }
 
   /**
    * Initialize the converter (launches browser)
+   * On Windows with subprocess mode, this is a no-op since browser is launched per-render
    */
   async initialize(): Promise<void> {
+    if (this.useSubprocess) {
+      // No persistent browser needed for subprocess mode
+      console.log("[ImageConverter] Subprocess mode - skipping browser initialization");
+      return;
+    }
+
     if (this.initPromise) {
       return this.initPromise;
     }
@@ -158,6 +248,11 @@ export class ImageConverter {
    * Shutdown the converter (closes browser)
    */
   async shutdown(): Promise<void> {
+    if (this.useSubprocess) {
+      // No persistent browser to close in subprocess mode
+      return;
+    }
+
     if (this.browser) {
       await this.browser.close();
       this.browser = null;
@@ -174,6 +269,44 @@ export class ImageConverter {
    * @returns Image buffer (PNG or BMP)
    */
   async convert(html: string, options?: Partial<ImageConverterOptions>): Promise<Buffer> {
+    const opts: Required<ImageConverterOptions> = {
+      format: options?.format ?? this.options.format,
+      width: options?.width ?? this.options.width,
+      grayscale: options?.grayscale ?? this.options.grayscale,
+    };
+
+    let buffer: Buffer;
+
+    if (this.useSubprocess) {
+      // Windows: use Node.js subprocess
+      buffer = await renderViaSubprocess(html, opts.width);
+    } else {
+      // Mac/Linux: use direct Playwright
+      buffer = await this.convertDirect(html, opts);
+    }
+
+    // Apply grayscale if requested
+    if (opts.grayscale) {
+      buffer = await this.convertToGrayscale(buffer);
+    }
+
+    // Convert to BMP if requested (not directly supported by Playwright)
+    if (opts.format === "bmp") {
+      console.warn(
+        "[ImageConverter] BMP format requested but returning PNG (BMP requires additional library)",
+      );
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Convert using direct Playwright (Mac/Linux)
+   */
+  private async convertDirect(
+    html: string,
+    opts: Required<ImageConverterOptions>,
+  ): Promise<Buffer> {
     if (!this.browser) {
       await this.initialize();
     }
@@ -181,12 +314,6 @@ export class ImageConverter {
     if (!this.browser) {
       throw new Error("Browser not initialized");
     }
-
-    const opts: Required<ImageConverterOptions> = {
-      format: options?.format ?? this.options.format,
-      width: options?.width ?? this.options.width,
-      grayscale: options?.grayscale ?? this.options.grayscale,
-    };
 
     let page: Page | null = null;
     try {
@@ -213,21 +340,7 @@ export class ImageConverter {
       });
 
       // Convert to Buffer if needed
-      let buffer = Buffer.isBuffer(screenshot) ? screenshot : Buffer.from(screenshot);
-
-      // Apply grayscale if requested
-      if (opts.grayscale) {
-        buffer = await this.convertToGrayscale(buffer);
-      }
-
-      // Convert to BMP if requested (not directly supported by Playwright)
-      if (opts.format === "bmp") {
-        console.warn(
-          "[ImageConverter] BMP format requested but returning PNG (BMP requires additional library)",
-        );
-      }
-
-      return buffer;
+      return Buffer.isBuffer(screenshot) ? screenshot : Buffer.from(screenshot);
     } finally {
       if (page) {
         await page.close();
@@ -254,6 +367,36 @@ export class ImageConverter {
    */
   static async isAvailable(): Promise<boolean> {
     console.log("[ImageConverter] Checking playwright availability...");
+
+    if (isWindows()) {
+      // On Windows, check if Node.js and the helper script exist
+      try {
+        const scriptPath = getHelperScriptPath();
+        const scriptFile = Bun.file(scriptPath);
+        const exists = await scriptFile.exists();
+
+        if (!exists) {
+          console.log(`[ImageConverter] Helper script not found: ${scriptPath}`);
+          return false;
+        }
+
+        // Check if playwright module is available (will be used by Node.js)
+        try {
+          await loadPlaywrightModule();
+        } catch {
+          console.log("[ImageConverter] Playwright module not installed");
+          return false;
+        }
+
+        console.log("[ImageConverter] Playwright is available (Windows subprocess mode)");
+        return true;
+      } catch (error) {
+        console.log("[ImageConverter] Error checking Windows availability:", error);
+        return false;
+      }
+    }
+
+    // Mac/Linux: check direct playwright availability
     try {
       await loadPlaywrightModule();
       console.log("[ImageConverter] Playwright is available");
