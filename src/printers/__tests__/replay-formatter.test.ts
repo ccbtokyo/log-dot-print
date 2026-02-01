@@ -508,7 +508,7 @@ describe("ReplayFormatter", () => {
       );
       const html = formatter.format(entry);
 
-      expect(html).toContain("14px");
+      expect(html).toContain("28px");
       expect(html).toContain("80mm");
     });
 

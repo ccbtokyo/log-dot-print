@@ -30,7 +30,7 @@ const DEFAULT_CONFIG: Required<
 } = {
   outputFormat: "replay",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  fontSize: 14,
+  fontSize: 28,
   pageWidth: 80,
   sideMargin: 10,
   npcColor: "#333",
@@ -112,7 +112,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const safeFontFamily = this.sanitizeFontFamilyList(fontFamily);
     const safeFontSize = this.sanitizeNumber(fontSize, DEFAULT_CONFIG.fontSize, {
       min: 8,
-      max: 72,
+      max: 512,
       integer: true,
     });
     const safePageWidth = this.sanitizeNumber(pageWidth, DEFAULT_CONFIG.pageWidth, {
@@ -122,7 +122,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     });
     const safeSideMargin = this.sanitizeNumber(sideMargin, DEFAULT_CONFIG.sideMargin, {
       min: 0,
-      max: 50,
+      max: 512,
       integer: true,
     });
     const safeNpcColor = this.sanitizeHexColor(npcColor, DEFAULT_CONFIG.npcColor);
@@ -162,14 +162,17 @@ export class ReplayFormatter implements LogFormatterPlugin {
     .message {
       margin-bottom: 16px;
       padding: 8px 0;
+      max-width: 50%;
     }
     .message.npc {
       text-align: left;
       color: ${safeNpcColor};
+      margin-right: auto;
     }
     .message.player {
       text-align: right;
       color: ${safePlayerColor};
+      margin-left: auto;
     }`;
 
     const messagesHtml = messages
@@ -206,7 +209,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const safeFontFamily = this.sanitizeFontFamilyList(fontFamily);
     const safeFontSize = this.sanitizeNumber(fontSize, DEFAULT_CONFIG.fontSize, {
       min: 8,
-      max: 72,
+      max: 512,
       integer: true,
     });
 
@@ -330,7 +333,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
 
     const fontSize = this.sanitizeNumber(replayConfig.fontSize, DEFAULT_CONFIG.fontSize, {
       min: 8,
-      max: 72,
+      max: 512,
       integer: true,
     });
 
@@ -342,7 +345,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
 
     const sideMargin = this.sanitizeNumber(replayConfig.sideMargin, DEFAULT_CONFIG.sideMargin, {
       min: 0,
-      max: 50,
+      max: 512,
       integer: true,
     });
 

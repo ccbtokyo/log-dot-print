@@ -17,7 +17,7 @@
   "format": {
     "outputFormat": "replay",
     "fontFamily": "Noto Sans JP",
-    "fontSize": 14,
+    "fontSize": 28,
     "pageWidth": 355,
     "sideMargin": 10
   },
