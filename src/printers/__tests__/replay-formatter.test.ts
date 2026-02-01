@@ -602,4 +602,65 @@ describe("ReplayFormatter", () => {
       await expect(formatter.shutdown()).resolves.toBeUndefined();
     });
   });
+
+  describe("API integration format", () => {
+    test("formats ChatMessage array (as sent via API) into valid HTML", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      // This is the exact format sent to POST /api/log
+      // API receives array → JSON.stringify → entry.message
+      const chatMessages = [
+        {
+          timestamp: "2024-01-15T10:30:00Z",
+          username: "ガイドNPC",
+          type: "npc",
+          message: "ようこそ、冒険者よ。",
+        },
+        {
+          timestamp: "2024-01-15T10:30:15Z",
+          username: "プレイヤー",
+          type: "player",
+          message: "こんにちは！",
+        },
+        {
+          timestamp: "2024-01-15T10:30:30Z",
+          username: "ガイドNPC",
+          type: "npc",
+          message: "何かお手伝いできることはありますか？",
+        },
+      ];
+
+      const entry = createLogEntry(JSON.stringify(chatMessages));
+      const html = formatter.format(entry);
+
+      // Verify HTML structure
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).toContain('<html lang="ja">');
+      expect(html).toContain("<head>");
+      expect(html).toContain("<body>");
+      expect(html).toContain("</html>");
+
+      // Verify all messages are rendered
+      expect(html).toContain("ガイドNPC");
+      expect(html).toContain("プレイヤー");
+      expect(html).toContain("ようこそ、冒険者よ。");
+      expect(html).toContain("こんにちは！");
+      expect(html).toContain("何かお手伝いできることはありますか？");
+
+      // Verify message types
+      expect(html).toContain('class="message npc"');
+      expect(html).toContain('class="message player"');
+
+      // Verify time formatting
+      expect(html).toContain("10:30");
+
+      // Verify no error state
+      expect(html).not.toContain('class="error"');
+    });
+
+    test("contentType is html for persistence", async () => {
+      await formatter.initialize(eventBus, createConfig());
+      expect(formatter.getContentType()).toBe("html");
+    });
+  });
 });
