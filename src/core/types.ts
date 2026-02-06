@@ -262,6 +262,8 @@ export interface JsonFormatConfig {
 export interface PrinterSettings {
   /** Currently selected printer name (OS printer name) */
   currentPrinter: string | null;
+  /** Selected paper size */
+  paperSize: string | null;
   /** List of available printers discovered from OS */
   availablePrinters: DiscoveredPrinter[];
   /** Whether using the OS default printer */

@@ -123,7 +123,7 @@ const statusBarCallbacks: StatusBarCallbacks = {
   onPrinterChange: async (printerName: string | null) => {
     store.setPrinterLoading(true);
     try {
-      await apiClient.updatePrinterSettings(printerName);
+      await apiClient.updatePrinterSettings({ printerName });
       store.setCurrentPrinter(printerName);
       store.setPrinterLoading(false);
       console.log("[App] Printer changed to:", printerName ?? "(default)");
@@ -131,6 +131,19 @@ const statusBarCallbacks: StatusBarCallbacks = {
       const message = error instanceof Error ? error.message : "Failed to update printer";
       store.setPrinterError(message);
       console.error("[App] Failed to change printer:", error);
+    }
+  },
+  onPaperSizeChange: async (paperSize: string | null) => {
+    store.setPrinterLoading(true);
+    try {
+      await apiClient.updatePrinterSettings({ paperSize });
+      store.setPaperSize(paperSize);
+      store.setPrinterLoading(false);
+      console.log("[App] Paper size changed to:", paperSize ?? "(default)");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update paper size";
+      store.setPrinterError(message);
+      console.error("[App] Failed to change paper size:", error);
     }
   },
 };

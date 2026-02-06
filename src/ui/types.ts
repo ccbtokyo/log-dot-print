@@ -120,6 +120,7 @@ export interface DiscoveredPrinter {
  */
 export interface PrinterSettingsState {
   currentPrinter: string | null;
+  paperSize: string | null;
   availablePrinters: DiscoveredPrinter[];
   isDefault: boolean;
   isLoading: boolean;

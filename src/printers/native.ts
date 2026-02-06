@@ -55,6 +55,21 @@ function getFileExtension(contentType?: PrintContentType): string {
 /**
  * Options for NativePrinter
  */
+const PAPER_SIZES = ["A4", "Letter", "Legal", "A3", "A5", "Tabloid"] as const;
+
+export type NativePaperSize = (typeof PAPER_SIZES)[number];
+
+function normalizePaperSize(value?: string | null): NativePaperSize | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return PAPER_SIZES.find((size) => size.toLowerCase() === trimmed.toLowerCase());
+}
+
 export interface NativePrinterOptions {
   /** Printer name (if not specified, uses default printer) */
   printerName?: string;
@@ -63,7 +78,7 @@ export interface NativePrinterOptions {
   /** Duplex printing */
   duplex?: boolean;
   /** Paper size */
-  paperSize?: "A4" | "Letter" | "Legal" | "A3" | "A5" | "Tabloid";
+  paperSize?: NativePaperSize;
   /** Print quality */
   quality?: "draft" | "normal" | "high";
   /** Color printing */
@@ -74,6 +89,8 @@ export interface NativePrinterOptions {
   persistDir?: string;
   /** Callback to get the current printer name from storage */
   getPrinterNameFromStorage?: () => Promise<string | null>;
+  /** Callback to get the current paper size from storage */
+  getPaperSizeFromStorage?: () => Promise<string | null>;
 }
 
 const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
@@ -100,6 +117,7 @@ export class NativePrinter extends BasePrinter {
   private printer: Printer | null = null;
   private printerAvailable = false;
   private getPrinterNameFromStorage?: () => Promise<string | null>;
+  private getPaperSizeFromStorage?: () => Promise<string | null>;
 
   constructor(options: NativePrinterOptions = {}) {
     super();
@@ -116,15 +134,7 @@ export class NativePrinter extends BasePrinter {
       options.quality === "draft" || options.quality === "normal" || options.quality === "high"
         ? options.quality
         : "normal";
-    const paperSize =
-      options.paperSize === "A4" ||
-      options.paperSize === "Letter" ||
-      options.paperSize === "Legal" ||
-      options.paperSize === "A3" ||
-      options.paperSize === "A5" ||
-      options.paperSize === "Tabloid"
-        ? options.paperSize
-        : undefined;
+    const paperSize = normalizePaperSize(options.paperSize);
     const persistDir =
       typeof options.persistDir === "string" && options.persistDir.trim()
         ? options.persistDir.trim()
@@ -140,6 +150,7 @@ export class NativePrinter extends BasePrinter {
       persistDir,
     };
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
+    this.getPaperSizeFromStorage = options.getPaperSizeFromStorage;
   }
 
   protected async connect(): Promise<void> {
@@ -266,8 +277,18 @@ export class NativePrinter extends BasePrinter {
         jobName: `log-${safeJobId}`,
       };
 
-      if (this.options.paperSize) {
-        printOptions.paperSize = this.options.paperSize;
+      let paperSize = this.options.paperSize;
+      if (this.getPaperSizeFromStorage) {
+        const storedPaperSize = await this.getPaperSizeFromStorage();
+        const normalizedPaperSize = normalizePaperSize(storedPaperSize);
+        if (normalizedPaperSize) {
+          paperSize = normalizedPaperSize;
+          console.log(`[NativePrinter] Using saved paper size: ${normalizedPaperSize}`);
+        }
+      }
+
+      if (paperSize) {
+        printOptions.paperSize = paperSize;
       }
 
       // Print the file

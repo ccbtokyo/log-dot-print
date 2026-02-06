@@ -8,6 +8,7 @@ import type { ConnectionState } from "../services/ws-client.js";
 
 export interface StatusBarCallbacks {
   onPrinterChange?: (printerName: string | null) => void;
+  onPaperSizeChange?: (paperSize: string | null) => void;
 }
 
 const getConnectionIcon = (state: ConnectionState): string => {
@@ -41,11 +42,18 @@ export const renderStatusBar = (
   callbacks?: StatusBarCallbacks,
 ) => {
   const { queue, connection, printerSettings } = state;
+  const paperSizes = ["A4", "Letter", "Legal", "A3", "A5", "Tabloid"];
 
   const handlePrinterChange = (event: Event) => {
     const select = event.target as HTMLSelectElement;
     const value = select.value;
     callbacks?.onPrinterChange?.(value === "" ? null : value);
+  };
+
+  const handlePaperSizeChange = (event: Event) => {
+    const select = event.target as HTMLSelectElement;
+    const value = select.value;
+    callbacks?.onPaperSizeChange?.(value === "" ? null : value);
   };
 
   const template = html`
@@ -95,6 +103,23 @@ export const renderStatusBar = (
               `
             : ""
         }
+      </div>
+      <div class="status-item paper-selector">
+        <span class="label">Paper:</span>
+        <select
+          class="paper-select"
+          @change=${handlePaperSizeChange}
+          ?disabled=${printerSettings.isLoading}
+        >
+          <option value="" ?selected=${printerSettings.paperSize === null}>System Default</option>
+          ${paperSizes.map(
+            (size) => html`
+              <option value=${size} ?selected=${printerSettings.paperSize === size}>
+                ${size}
+              </option>
+            `,
+          )}
+        </select>
       </div>
     </div>
   `;

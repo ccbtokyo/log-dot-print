@@ -119,6 +119,7 @@ export class ApiClient {
     const data = await response.json();
     return {
       currentPrinter: data.currentPrinter,
+      paperSize: data.paperSize ?? null,
       availablePrinters: data.availablePrinters,
       isDefault: data.isDefault,
       isLoading: false,
@@ -126,11 +127,14 @@ export class ApiClient {
     };
   }
 
-  async updatePrinterSettings(printerName: string | null): Promise<void> {
+  async updatePrinterSettings(options: {
+    printerName?: string | null;
+    paperSize?: string | null;
+  }): Promise<void> {
     const response = await fetch(`${this.baseUrl}/api/settings/printer`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ printerName }),
+      body: JSON.stringify(options),
     });
     if (!response.ok) {
       throw new Error(`Failed to update printer settings: ${response.status}`);

@@ -15,6 +15,7 @@
  */
 
 import { resolve, dirname } from "node:path";
+import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 // Playwright types (dynamic import - playwright is optional)
@@ -69,6 +70,23 @@ type PlaywrightModule = {
 };
 
 let playwrightModule: PlaywrightModule | null = null;
+
+async function hasChromiumExecutable(playwright: PlaywrightModule): Promise<boolean> {
+  const chromium = playwright.chromium as BrowserType & { executablePath?: () => string };
+  if (typeof chromium.executablePath !== "function") {
+    return true;
+  }
+  const executablePath = chromium.executablePath();
+  if (!executablePath) {
+    return false;
+  }
+  try {
+    await access(executablePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Check if running on Windows
@@ -398,7 +416,12 @@ export class ImageConverter {
 
     // Mac/Linux: check direct playwright availability
     try {
-      await loadPlaywrightModule();
+      const playwright = await loadPlaywrightModule();
+      const hasBrowser = await hasChromiumExecutable(playwright);
+      if (!hasBrowser) {
+        console.log("[ImageConverter] Playwright installed but Chromium missing");
+        return false;
+      }
       console.log("[ImageConverter] Playwright is available");
       return true;
     } catch {

@@ -244,6 +244,25 @@ describe("NativePrinter", () => {
 
       await printer.shutdown();
     });
+
+    test("uses stored paper size when available", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "A5",
+        getPaperSizeFromStorage: async () => "Letter",
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("stored-paper-size");
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.simple).toMatchObject({
+        paperSize: "Letter",
+      });
+
+      await printer.shutdown();
+    });
   });
 
   describe("shutdown", () => {

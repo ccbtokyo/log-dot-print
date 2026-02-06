@@ -41,6 +41,7 @@ describe("Settings API - Printer", () => {
       expect(data).toHaveProperty("currentPrinter");
       expect(data).toHaveProperty("availablePrinters");
       expect(data).toHaveProperty("isDefault");
+      expect(data).toHaveProperty("paperSize");
       expect(Array.isArray(data.availablePrinters)).toBe(true);
     });
 
@@ -88,7 +89,7 @@ describe("Settings API - Printer", () => {
       expect(data.isDefault).toBe(false);
     });
 
-    test("returns 400 for missing printerName", async () => {
+    test("returns 400 for missing printerName and paperSize", async () => {
       const response = await fetch(`${baseUrl}/api/settings/printer`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -127,6 +128,23 @@ describe("Settings API - Printer", () => {
       const data = await getResponse.json();
       expect(data.currentPrinter).toBeNull();
       expect(data.isDefault).toBe(true);
+    });
+
+    test("saves paper size setting", async () => {
+      const response = await fetch(`${baseUrl}/api/settings/printer`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4" }),
+      });
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.paperSize).toBe("A4");
+
+      const getResponse = await fetch(`${baseUrl}/api/settings/printer`);
+      const getData = await getResponse.json();
+      expect(getData.paperSize).toBe("A4");
     });
   });
 });

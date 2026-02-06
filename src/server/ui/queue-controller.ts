@@ -218,12 +218,16 @@ export class QueueController {
         const savedPrinter = sqliteStorage?.getSetting
           ? await sqliteStorage.getSetting("printer.name")
           : null;
+        const savedPaperSize = sqliteStorage?.getSetting
+          ? await sqliteStorage.getSetting("printer.paperSize")
+          : null;
 
         const currentPrinter = savedPrinter ?? null;
         const isDefault = savedPrinter === null;
 
         const response: PrinterSettings = {
           currentPrinter,
+          paperSize: savedPaperSize ?? null,
           availablePrinters: printers,
           isDefault,
         };
@@ -242,30 +246,42 @@ export class QueueController {
         return c.json({ error: "Storage not configured for settings" }, 503);
       }
 
-      let body: { printerName?: string | null };
+      let body: { printerName?: string | null; paperSize?: string | null };
       try {
         body = await c.req.json();
       } catch {
         return c.json({ error: "Invalid JSON body" }, 400);
       }
 
-      if (!("printerName" in body)) {
-        return c.json({ error: "Missing printerName field" }, 400);
+      if (!("printerName" in body) && !("paperSize" in body)) {
+        return c.json({ error: "Missing printerName or paperSize field" }, 400);
       }
 
-      const { printerName } = body;
+      const { printerName, paperSize } = body;
 
       try {
-        if (printerName === null) {
-          // Clear the setting to use default
-          await sqliteStorage.deleteSetting("printer.name");
-          console.log("[QueueController] Printer setting cleared (using default)");
-        } else if (typeof printerName === "string") {
-          await sqliteStorage.setSetting("printer.name", printerName);
-          console.log(`[QueueController] Printer setting saved: ${printerName}`);
+        if ("printerName" in body) {
+          if (printerName === null) {
+            // Clear the setting to use default
+            await sqliteStorage.deleteSetting("printer.name");
+            console.log("[QueueController] Printer setting cleared (using default)");
+          } else if (typeof printerName === "string") {
+            await sqliteStorage.setSetting("printer.name", printerName);
+            console.log(`[QueueController] Printer setting saved: ${printerName}`);
+          }
         }
 
-        return c.json({ success: true, printerName });
+        if ("paperSize" in body) {
+          if (paperSize === null) {
+            await sqliteStorage.deleteSetting("printer.paperSize");
+            console.log("[QueueController] Paper size setting cleared");
+          } else if (typeof paperSize === "string") {
+            await sqliteStorage.setSetting("printer.paperSize", paperSize);
+            console.log(`[QueueController] Paper size setting saved: ${paperSize}`);
+          }
+        }
+
+        return c.json({ success: true, printerName, paperSize });
       } catch (error) {
         console.error("[QueueController] Failed to save printer setting:", error);
         return c.json({ error: "Failed to save printer setting", details: String(error) }, 500);

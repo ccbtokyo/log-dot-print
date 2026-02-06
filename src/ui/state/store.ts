@@ -40,6 +40,7 @@ const initialHistoryState: HistoryState = {
 
 const initialPrinterSettings: PrinterSettingsState = {
   currentPrinter: null,
+  paperSize: null,
   availablePrinters: [],
   isDefault: true,
   isLoading: false,
@@ -163,6 +164,17 @@ export class Store {
         ...this.state.printerSettings,
         currentPrinter: printerName,
         isDefault: printerName === null,
+      },
+    };
+    this.notify();
+  }
+
+  setPaperSize(paperSize: string | null): void {
+    this.state = {
+      ...this.state,
+      printerSettings: {
+        ...this.state.printerSettings,
+        paperSize,
       },
     };
     this.notify();
