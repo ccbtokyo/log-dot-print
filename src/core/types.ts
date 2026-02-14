@@ -145,6 +145,8 @@ export interface HtmlFormatConfig {
   fontSize?: number;
   /** Page width in mm (for PDF conversion) */
   pageWidth?: number;
+  /** PDF paper size name (e.g. "A4", "Letter", "Custom.11x15in"). Overrides pageWidth when set. */
+  pdfPaperSize?: string;
   /** Whether to include timestamp in output */
   includeTimestamp?: boolean;
   /** Whether to include source in output */
@@ -168,6 +170,8 @@ export interface ReplayFormatConfig {
   fontSize?: number;
   /** Page width in mm (for PDF conversion) */
   pageWidth?: number;
+  /** PDF paper size name (e.g. "A4", "Letter", "Custom.11x15in"). Overrides pageWidth when set. */
+  pdfPaperSize?: string;
   /** Side margin in mm (for dot impact printer punch rails) */
   sideMargin?: number;
   /** Custom CSS (optional) */

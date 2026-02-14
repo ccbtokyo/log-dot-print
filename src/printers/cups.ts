@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import type { PrintJob, PrinterStatus, PrinterType, PrintContentType } from "../core/index.js";
 import { BasePrinter } from "./base-printer.js";
+import { normalizePaperName } from "./paper-size-resolver.js";
 import { printerRegistry } from "./registry.js";
 
 /** Supported HTML to PDF converters */
@@ -14,12 +15,14 @@ interface CupsPrinterOptions {
   printerName?: string;
   /** Additional lp options */
   lpOptions?: string[];
-  /** Paper size */
-  paperSize?: "a4" | "letter" | "legal" | "a5";
+  /** Paper size (standard names like "A4", "Letter", or custom like "Custom.11x15.5in") */
+  paperSize?: string;
   /** Number of copies */
   copies?: number;
   /** Preferred HTML to PDF converter (auto-detected if not specified) */
   htmlConverter?: HtmlConverter;
+  /** Callback to get the current paper size from storage */
+  getPaperSizeFromStorage?: () => Promise<string | null>;
 }
 
 /**
@@ -34,6 +37,8 @@ export class CupsPrinter extends BasePrinter {
   private options: CupsPrinterOptions;
   private printerAvailable = false;
   private detectedHtmlConverter: HtmlConverter | null = null;
+  private getPaperSizeFromStorage?: () => Promise<string | null>;
+  private resolvedPaperSize: string = "a4";
 
   constructor(options: CupsPrinterOptions = {}) {
     super();
@@ -44,6 +49,8 @@ export class CupsPrinter extends BasePrinter {
       copies: options.copies ?? 1,
       htmlConverter: options.htmlConverter,
     };
+    this.getPaperSizeFromStorage = options.getPaperSizeFromStorage;
+    this.resolvedPaperSize = this.options.paperSize ?? "a4";
   }
 
   protected async connect(): Promise<void> {
@@ -100,6 +107,9 @@ export class CupsPrinter extends BasePrinter {
     if (!this.printerAvailable) {
       throw new Error("Printer not connected");
     }
+
+    // Resolve stored paper size before any print path
+    await this.resolvePaperSizeForPrint();
 
     const contentType: PrintContentType = job.contentType ?? "text";
 
@@ -165,6 +175,22 @@ export class CupsPrinter extends BasePrinter {
   }
 
   /**
+   * Resolve paper size: storage callback > config option.
+   * Returns the resolved paper size string.
+   */
+  private async resolvePaperSizeForPrint(): Promise<string> {
+    if (this.getPaperSizeFromStorage) {
+      const saved = await this.getPaperSizeFromStorage();
+      if (saved) {
+        this.resolvedPaperSize = saved;
+        return saved;
+      }
+    }
+    this.resolvedPaperSize = this.options.paperSize ?? "a4";
+    return this.resolvedPaperSize;
+  }
+
+  /**
    * Execute lp command to print a file
    */
   private async executeLpCommand(filePath: string): Promise<void> {
@@ -176,8 +202,9 @@ export class CupsPrinter extends BasePrinter {
 
     args.push("-n", String(this.options.copies));
 
-    if (this.options.paperSize) {
-      args.push("-o", `media=${this.options.paperSize}`);
+    const normalized = normalizePaperName(this.resolvedPaperSize);
+    if (normalized) {
+      args.push("-o", `media=${normalized}`);
     }
 
     // Add custom options
@@ -235,7 +262,8 @@ export class CupsPrinter extends BasePrinter {
   }
 
   /**
-   * Build command for HTML to PDF conversion
+   * Build command for HTML to PDF conversion.
+   * For wkhtmltopdf, standard sizes use --page-size; Custom sizes use --page-width/--page-height.
    */
   private buildPdfConversionCommand(
     converter: HtmlConverter,
@@ -243,20 +271,23 @@ export class CupsPrinter extends BasePrinter {
     outputPath: string,
   ): { command: string; args: string[] } {
     if (converter === "wkhtmltopdf") {
-      return {
-        command: "wkhtmltopdf",
-        args: [
-          "--quiet",
-          "--enable-local-file-access",
-          "--page-size",
-          this.options.paperSize?.toUpperCase() ?? "A4",
-          inputPath,
-          outputPath,
-        ],
-      };
+      const paperSize = this.resolvedPaperSize;
+      const args = ["--quiet", "--enable-local-file-access"];
+
+      const customMatch = /^Custom\.(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(in|mm)$/.exec(paperSize);
+      if (customMatch) {
+        const [, width, height, unit] = customMatch;
+        args.push("--page-width", `${width}${unit}`, "--page-height", `${height}${unit}`);
+      } else {
+        args.push("--page-size", paperSize.toUpperCase());
+      }
+
+      args.push(inputPath, outputPath);
+
+      return { command: "wkhtmltopdf", args };
     }
 
-    // weasyprint
+    // weasyprint: relies on @page CSS from the formatter
     return {
       command: "weasyprint",
       args: [inputPath, outputPath],
@@ -348,14 +379,15 @@ export function createCupsPrinter(options: Record<string, unknown>): CupsPrinter
   return new CupsPrinter({
     printerName: typeof options.printerName === "string" ? options.printerName : undefined,
     lpOptions: Array.isArray(options.lpOptions) ? options.lpOptions : undefined,
-    paperSize:
-      typeof options.paperSize === "string"
-        ? (options.paperSize as CupsPrinterOptions["paperSize"])
-        : undefined,
+    paperSize: typeof options.paperSize === "string" ? options.paperSize : undefined,
     copies: typeof options.copies === "number" ? options.copies : undefined,
     htmlConverter:
       typeof options.htmlConverter === "string"
         ? (options.htmlConverter as HtmlConverter)
+        : undefined,
+    getPaperSizeFromStorage:
+      typeof options.getPaperSizeFromStorage === "function"
+        ? (options.getPaperSizeFromStorage as () => Promise<string | null>)
         : undefined,
   });
 }

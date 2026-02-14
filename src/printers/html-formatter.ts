@@ -7,17 +7,19 @@ import type {
   PrintContentType,
 } from "../core/index.js";
 import { formatTimestamp } from "../core/index.js";
+import { paperNameToCssPageSize } from "./paper-size-resolver.js";
 
 /**
  * Default HTML format configuration
  */
 const DEFAULT_CONFIG: Required<
-  Omit<HtmlFormatConfig, "outputFormat" | "template" | "css" | "fontPath">
+  Omit<HtmlFormatConfig, "outputFormat" | "template" | "css" | "fontPath" | "pdfPaperSize">
 > & {
   outputFormat: "html";
   template?: string;
   css?: string;
   fontPath?: string;
+  pdfPaperSize?: string;
 } = {
   outputFormat: "html",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -57,6 +59,7 @@ export class HtmlFormatter implements LogFormatterPlugin {
         template: htmlConfig.template,
         css: htmlConfig.css,
         fontPath: htmlConfig.fontPath,
+        pdfPaperSize: htmlConfig.pdfPaperSize,
       };
     }
   }
@@ -84,6 +87,7 @@ export class HtmlFormatter implements LogFormatterPlugin {
       includeSource,
       includeLevel,
       fontPath,
+      pdfPaperSize,
     } = this.config;
 
     const fontFaceRule = fontPath
@@ -96,9 +100,13 @@ export class HtmlFormatter implements LogFormatterPlugin {
     }`
       : "";
 
+    const pageSizeValue = pdfPaperSize
+      ? paperNameToCssPageSize(pdfPaperSize)
+      : `${pageWidth}mm auto`;
+
     const css = `
     @page {
-      size: ${pageWidth}mm auto;
+      size: ${pageSizeValue};
       margin: 10mm;
     }
     * {

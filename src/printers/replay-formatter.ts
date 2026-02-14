@@ -6,6 +6,7 @@ import type {
   ReplayFormatConfig,
   PrintContentType,
 } from "../core/index.js";
+import { paperNameToCssPageSize } from "./paper-size-resolver.js";
 
 /**
  * Chat message structure for re:play formatter
@@ -21,12 +22,13 @@ interface ChatMessage {
  * Default re:play format configuration
  */
 const DEFAULT_CONFIG: Required<
-  Omit<ReplayFormatConfig, "outputFormat" | "css" | "fontPath" | "sideMargin">
+  Omit<ReplayFormatConfig, "outputFormat" | "css" | "fontPath" | "sideMargin" | "pdfPaperSize">
 > & {
   outputFormat: "replay";
   css?: string;
   fontPath?: string;
   sideMargin: number;
+  pdfPaperSize?: string;
 } = {
   outputFormat: "replay",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -106,8 +108,16 @@ export class ReplayFormatter implements LogFormatterPlugin {
    * Render chat messages as HTML
    */
   private renderChatHtml(messages: ChatMessage[]): string {
-    const { fontFamily, fontSize, pageWidth, sideMargin, npcColor, playerColor, fontPath } =
-      this.config;
+    const {
+      fontFamily,
+      fontSize,
+      pageWidth,
+      sideMargin,
+      npcColor,
+      playerColor,
+      fontPath,
+      pdfPaperSize,
+    } = this.config;
 
     const safeFontFamily = this.sanitizeFontFamilyList(fontFamily);
     const safeFontSize = this.sanitizeNumber(fontSize, DEFAULT_CONFIG.fontSize, {
@@ -140,9 +150,13 @@ export class ReplayFormatter implements LogFormatterPlugin {
     }`
       : "";
 
+    const pageSizeValue = pdfPaperSize
+      ? paperNameToCssPageSize(pdfPaperSize)
+      : `${safePageWidth}mm auto`;
+
     const css = `
     @page {
-      size: ${safePageWidth}mm auto;
+      size: ${pageSizeValue};
       margin: 10mm ${safeSideMargin}mm;
     }
     * {
@@ -355,6 +369,11 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const css = typeof replayConfig.css === "string" ? replayConfig.css : undefined;
     const fontPath = this.sanitizeFontPath(replayConfig.fontPath);
 
+    const pdfPaperSize =
+      typeof replayConfig.pdfPaperSize === "string" && replayConfig.pdfPaperSize.trim().length > 0
+        ? replayConfig.pdfPaperSize
+        : undefined;
+
     return {
       outputFormat: "replay",
       fontFamily,
@@ -365,6 +384,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       playerColor,
       css,
       fontPath,
+      pdfPaperSize,
     };
   }
 

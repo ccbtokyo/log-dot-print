@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { BasePrinter } from "./base-printer.js";
+import { resolvePaperSize, normalizePaperName } from "./paper-size-resolver.js";
 import { printerRegistry } from "./registry.js";
 import type { PrintJob, PrinterType, PrinterStatus, PrintContentType } from "../core/types.js";
 
@@ -269,13 +270,19 @@ export class NativePrinter extends BasePrinter {
       };
 
       // Resolve paper size: storage > config > unset
-      let resolvedPaperSize: string | undefined = this.options.paperSize;
-      if (this.getPaperSizeFromStorage) {
-        const saved = await this.getPaperSizeFromStorage();
-        if (saved) resolvedPaperSize = saved;
-      }
-      if (resolvedPaperSize) {
-        printOptions.paperSize = resolvedPaperSize;
+      // For printer driver, storage overrides config (higher priority)
+      const storedPaperSize = this.getPaperSizeFromStorage
+        ? await this.getPaperSizeFromStorage()
+        : null;
+      const resolved = resolvePaperSize({
+        configPdfPaperSize: storedPaperSize ?? undefined,
+        storedPrinterPaperSize: this.options.paperSize,
+      });
+      if (resolved) {
+        const normalized = normalizePaperName(resolved);
+        if (normalized) {
+          printOptions.paperSize = normalized;
+        }
       }
 
       // Print the file

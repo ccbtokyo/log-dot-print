@@ -406,6 +406,45 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("80mm");
     });
 
+    test("uses pdfPaperSize as CSS @page size when set to standard name", async () => {
+      await formatter.initialize(eventBus, createConfig({ pdfPaperSize: "A4" }));
+
+      const entry = createLogEntry(
+        JSON.stringify([
+          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
+        ]),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("size: A4;");
+    });
+
+    test("uses pdfPaperSize as CSS @page size when set to Custom inch format", async () => {
+      await formatter.initialize(eventBus, createConfig({ pdfPaperSize: "Custom.11x15.5in" }));
+
+      const entry = createLogEntry(
+        JSON.stringify([
+          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
+        ]),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("size: 11in 15.5in;");
+    });
+
+    test("falls back to pageWidth mm when pdfPaperSize is not set", async () => {
+      await formatter.initialize(eventBus, createConfig({ pageWidth: 100 }));
+
+      const entry = createLogEntry(
+        JSON.stringify([
+          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
+        ]),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("size: 100mm auto;");
+    });
+
     test("applies custom font path with @font-face", async () => {
       await formatter.initialize(
         eventBus,

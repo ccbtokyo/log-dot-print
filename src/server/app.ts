@@ -200,9 +200,27 @@ export class LogPrintApp {
       console.log("[App] Image converter not enabled, skipping");
     }
 
-    // Initialize formatter
+    // Initialize formatter — inject stored paper size if not explicitly set in config
     console.log("[App] Initializing formatter...");
-    await this.formatter.initialize(this.eventBus, this.config);
+    let configForFormatter = this.config;
+    const fmt = this.config.format;
+    if (
+      (fmt.outputFormat === "html" || fmt.outputFormat === "replay") &&
+      !fmt.pdfPaperSize &&
+      this.queueStorage
+    ) {
+      const sqliteStorage = this.queueStorage as SqliteStorage | undefined;
+      const storedPaperSize = sqliteStorage?.getSetting
+        ? await sqliteStorage.getSetting("printer.paperSize")
+        : null;
+      if (storedPaperSize) {
+        configForFormatter = {
+          ...this.config,
+          format: { ...fmt, pdfPaperSize: storedPaperSize },
+        };
+      }
+    }
+    await this.formatter.initialize(this.eventBus, configForFormatter);
     console.log("[App] Formatter initialized");
 
     // Initialize printer

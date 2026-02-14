@@ -90,5 +90,79 @@ describe("CupsPrinter", () => {
       expect(cmd.args).toContain("/tmp/input.html");
       expect(cmd.args).toContain("/tmp/output.pdf");
     });
+
+    test("wkhtmltopdf uses normalized paper size from options", () => {
+      const printer = new CupsPrinter({ paperSize: "letter" });
+      const cmd = (printer as any).buildPdfConversionCommand(
+        "wkhtmltopdf",
+        "/tmp/input.html",
+        "/tmp/output.pdf",
+      );
+
+      expect(cmd.args).toContain("--page-size");
+      expect(cmd.args).toContain("LETTER");
+    });
+
+    test("wkhtmltopdf uses Custom dimensions via --page-width/--page-height", () => {
+      const printer = new CupsPrinter({ paperSize: "Custom.11x15.5in" });
+      const cmd = (printer as any).buildPdfConversionCommand(
+        "wkhtmltopdf",
+        "/tmp/input.html",
+        "/tmp/output.pdf",
+      );
+
+      expect(cmd.args).toContain("--page-width");
+      expect(cmd.args).toContain("11in");
+      expect(cmd.args).toContain("--page-height");
+      expect(cmd.args).toContain("15.5in");
+    });
+
+    test("wkhtmltopdf uses stored paper size when available", async () => {
+      const printer = new CupsPrinter({
+        paperSize: "a4",
+        getPaperSizeFromStorage: async () => "Letter",
+      });
+      // Trigger resolution (updates resolvedPaperSize without mutating options)
+      await (printer as any).resolvePaperSizeForPrint();
+      const cmd = (printer as any).buildPdfConversionCommand(
+        "wkhtmltopdf",
+        "/tmp/input.html",
+        "/tmp/output.pdf",
+      );
+
+      expect(cmd.args).toContain("LETTER");
+      // Verify options.paperSize is NOT mutated
+      expect((printer as any).options.paperSize).toBe("a4");
+    });
+  });
+
+  describe("paper size resolution", () => {
+    test("uses config paperSize as default", () => {
+      const printer = new CupsPrinter({ paperSize: "Legal" });
+      expect((printer as any).options.paperSize).toBe("Legal");
+    });
+
+    test("accepts any string for paperSize", () => {
+      const printer = new CupsPrinter({ paperSize: "Custom.11x15.5in" });
+      expect((printer as any).options.paperSize).toBe("Custom.11x15.5in");
+    });
+
+    test("resolvePaperSizeForPrint returns stored value over config", async () => {
+      const printer = new CupsPrinter({
+        paperSize: "A4",
+        getPaperSizeFromStorage: async () => "B5",
+      });
+      const resolved = await (printer as any).resolvePaperSizeForPrint();
+      expect(resolved).toBe("B5");
+    });
+
+    test("resolvePaperSizeForPrint returns config when no stored value", async () => {
+      const printer = new CupsPrinter({
+        paperSize: "A4",
+        getPaperSizeFromStorage: async () => null,
+      });
+      const resolved = await (printer as any).resolvePaperSizeForPrint();
+      expect(resolved).toBe("A4");
+    });
   });
 });

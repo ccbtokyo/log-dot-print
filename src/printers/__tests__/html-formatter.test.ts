@@ -216,6 +216,33 @@ describe("HtmlFormatter", () => {
 
       expect(result).toContain("80mm");
     });
+
+    test("uses pdfPaperSize as CSS @page size when set to standard name", async () => {
+      await formatter.initialize(mockEventBus, createConfig({ pdfPaperSize: "A4" }));
+      const entry = createEntry();
+
+      const result = formatter.format(entry);
+
+      expect(result).toContain("size: A4;");
+    });
+
+    test("uses pdfPaperSize as CSS @page size when set to Custom inch format", async () => {
+      await formatter.initialize(mockEventBus, createConfig({ pdfPaperSize: "Custom.11x15.5in" }));
+      const entry = createEntry();
+
+      const result = formatter.format(entry);
+
+      expect(result).toContain("size: 11in 15.5in;");
+    });
+
+    test("falls back to pageWidth mm when pdfPaperSize is not set", async () => {
+      await formatter.initialize(mockEventBus, createConfig({ pageWidth: 100 }));
+      const entry = createEntry();
+
+      const result = formatter.format(entry);
+
+      expect(result).toContain("size: 100mm auto;");
+    });
   });
 
   describe("plugin interface", () => {
