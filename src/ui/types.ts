@@ -125,3 +125,15 @@ export interface PrinterSettingsState {
   isLoading: boolean;
   error: string | null;
 }
+
+/**
+ * Paper settings state
+ */
+export interface PaperSettingsState {
+  currentPaperSize: string | null;
+  availablePaperSizes: string[];
+  source: "dynamic" | "fallback";
+  isDefault: boolean;
+  isLoading: boolean;
+  error: string | null;
+}

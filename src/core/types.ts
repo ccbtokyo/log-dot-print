@@ -267,3 +267,16 @@ export interface PrinterSettings {
   /** Whether using the OS default printer */
   isDefault: boolean;
 }
+
+/** Response type for GET /api/papers */
+export interface PaperListResponse {
+  paperSizes: string[];
+  source: "dynamic" | "fallback";
+  printerName: string | null;
+}
+
+/** Response type for GET /api/settings/paper */
+export interface PaperSettings {
+  currentPaperSize: string | null;
+  isDefault: boolean;
+}

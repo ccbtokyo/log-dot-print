@@ -12,11 +12,14 @@ import type {
   TypedEventEmitter,
   QueuePersistencePlugin,
   PrinterSettings,
+  PaperListResponse,
+  PaperSettings,
 } from "../../core/index.js";
 import type { SqliteStorage } from "../../storage/sqlite-storage.js";
 import type { PrintQueue } from "../../printers/index.js";
 import type { LogFormatterPlugin } from "../../core/index.js";
 import { printerDiscovery } from "../../printers/discovery.js";
+import { getAvailablePaperSizes } from "../../printers/paper-discovery.js";
 
 /**
  * Queue controller for REST API
@@ -249,7 +252,7 @@ export class QueueController {
         return c.json({ error: "Invalid JSON body" }, 400);
       }
 
-      if (!("printerName" in body)) {
+      if (typeof body !== "object" || body === null || !("printerName" in body)) {
         return c.json({ error: "Missing printerName field" }, 400);
       }
 
@@ -269,6 +272,104 @@ export class QueueController {
       } catch (error) {
         console.error("[QueueController] Failed to save printer setting:", error);
         return c.json({ error: "Failed to save printer setting", details: String(error) }, 500);
+      }
+    });
+
+    // GET /api/papers - List available paper sizes
+    this.app.get("/api/papers", async (c) => {
+      try {
+        const sqliteStorage = this.storage as SqliteStorage | undefined;
+        const savedPrinter = sqliteStorage?.getSetting
+          ? await sqliteStorage.getSetting("printer.name")
+          : null;
+
+        const result = await getAvailablePaperSizes(savedPrinter);
+        const response: PaperListResponse = {
+          paperSizes: result.paperSizes,
+          source: result.source,
+          printerName: result.printerName,
+        };
+        return c.json(response);
+      } catch (error) {
+        console.error("[QueueController] Failed to get paper sizes:", error);
+        return c.json({ error: "Failed to get paper sizes", details: String(error) }, 500);
+      }
+    });
+
+    // GET /api/settings/paper - Get current paper setting
+    this.app.get("/api/settings/paper", async (c) => {
+      try {
+        const sqliteStorage = this.storage as SqliteStorage | undefined;
+        const savedPaperSize = sqliteStorage?.getSetting
+          ? await sqliteStorage.getSetting("printer.paperSize")
+          : null;
+
+        const response: PaperSettings = {
+          currentPaperSize: savedPaperSize ?? null,
+          isDefault: savedPaperSize === null,
+        };
+        return c.json(response);
+      } catch (error) {
+        console.error("[QueueController] Failed to get paper settings:", error);
+        return c.json({ error: "Failed to get paper settings", details: String(error) }, 500);
+      }
+    });
+
+    // PUT /api/settings/paper - Update paper setting
+    this.app.put("/api/settings/paper", async (c) => {
+      const sqliteStorage = this.storage as SqliteStorage | undefined;
+      if (!sqliteStorage?.setSetting) {
+        return c.json({ error: "Storage not configured for settings" }, 503);
+      }
+
+      let body: { paperSize?: string | null };
+      try {
+        body = await c.req.json();
+      } catch {
+        return c.json({ error: "Invalid JSON body" }, 400);
+      }
+
+      if (typeof body !== "object" || body === null || !("paperSize" in body)) {
+        return c.json({ error: "Missing paperSize field" }, 400);
+      }
+
+      const { paperSize } = body;
+
+      try {
+        if (paperSize === null) {
+          await sqliteStorage.deleteSetting("printer.paperSize");
+          console.log("[QueueController] Paper size setting cleared (using default)");
+          return c.json({ success: true, paperSize: null });
+        }
+
+        if (typeof paperSize !== "string" || !paperSize.trim()) {
+          return c.json({ error: "paperSize must be a non-empty string or null" }, 400);
+        }
+
+        const trimmed = paperSize.trim();
+
+        // Validate against available sizes
+        const sqliteStorageForPrinter = this.storage as SqliteStorage | undefined;
+        const savedPrinter = sqliteStorageForPrinter?.getSetting
+          ? await sqliteStorageForPrinter.getSetting("printer.name")
+          : null;
+        const available = await getAvailablePaperSizes(savedPrinter);
+        if (!available.paperSizes.includes(trimmed)) {
+          return c.json(
+            {
+              error: `Unknown paper size: "${trimmed}"`,
+              availableSizes: available.paperSizes,
+            },
+            400,
+          );
+        }
+
+        await sqliteStorage.setSetting("printer.paperSize", trimmed);
+        console.log(`[QueueController] Paper size setting saved: ${trimmed}`);
+        return c.json({ success: true, paperSize: trimmed });
+      } catch (error) {
+        console.error("[QueueController] Failed to save paper setting:", error);
+        return c.json({ error: "Failed to save paper setting", details: String(error) }, 500);
       }
     });
   }

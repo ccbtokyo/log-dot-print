@@ -8,6 +8,7 @@ import type {
   JobPreview,
   HistoryResponse,
   PrinterSettingsState,
+  PaperSettingsState,
 } from "../types.js";
 
 export class ApiClient {
@@ -134,6 +135,45 @@ export class ApiClient {
     });
     if (!response.ok) {
       throw new Error(`Failed to update printer settings: ${response.status}`);
+    }
+  }
+
+  async getAvailablePapers(): Promise<{
+    paperSizes: string[];
+    source: string;
+    printerName: string | null;
+  }> {
+    const response = await fetch(`${this.baseUrl}/api/papers`);
+    if (!response.ok) {
+      throw new Error(`Failed to get available papers: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async getPaperSettings(): Promise<PaperSettingsState> {
+    const response = await fetch(`${this.baseUrl}/api/settings/paper`);
+    if (!response.ok) {
+      throw new Error(`Failed to get paper settings: ${response.status}`);
+    }
+    const data = await response.json();
+    return {
+      currentPaperSize: data.currentPaperSize,
+      availablePaperSizes: [],
+      source: "fallback",
+      isDefault: data.isDefault,
+      isLoading: false,
+      error: null,
+    };
+  }
+
+  async updatePaperSettings(paperSize: string | null): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/settings/paper`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paperSize }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update paper settings: ${response.status}`);
     }
   }
 }

@@ -6,6 +6,7 @@ export * from "./html-formatter.js";
 export * from "./replay-formatter.js";
 export * from "./registry.js";
 export * from "./discovery.js";
+export * from "./paper-discovery.js";
 export * from "./converters/index.js";
 
 // Printer implementations (side effects: register with registry)

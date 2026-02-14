@@ -244,6 +244,87 @@ describe("NativePrinter", () => {
 
       await printer.shutdown();
     });
+
+    test("accepts arbitrary string as paperSize", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "Custom.11x15.5in",
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.simple.paperSize).toBe("Custom.11x15.5in");
+
+      await printer.shutdown();
+    });
+
+    test("uses getPaperSizeFromStorage callback value over config paperSize", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "A4",
+        getPaperSizeFromStorage: async () => "Custom.11x15in",
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.simple.paperSize).toBe("Custom.11x15in");
+
+      await printer.shutdown();
+    });
+
+    test("falls back to config paperSize when storage returns null", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "A4",
+        getPaperSizeFromStorage: async () => null,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.simple.paperSize).toBe("A4");
+
+      await printer.shutdown();
+    });
+
+    test("uses config paperSize when no storage callback is set", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "Letter",
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.simple.paperSize).toBe("Letter");
+
+      await printer.shutdown();
+    });
+
+    test("does not set paperSize when neither storage nor config provides one", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.simple.paperSize).toBeUndefined();
+
+      await printer.shutdown();
+    });
   });
 
   describe("shutdown", () => {

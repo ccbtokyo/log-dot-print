@@ -62,8 +62,8 @@ export interface NativePrinterOptions {
   copies?: number;
   /** Duplex printing */
   duplex?: boolean;
-  /** Paper size */
-  paperSize?: "A4" | "Letter" | "Legal" | "A3" | "A5" | "Tabloid";
+  /** Paper size (standard names like "A4", "Letter", or custom like "Custom.11x15.5in") */
+  paperSize?: string;
   /** Print quality */
   quality?: "draft" | "normal" | "high";
   /** Color printing */
@@ -74,6 +74,8 @@ export interface NativePrinterOptions {
   persistDir?: string;
   /** Callback to get the current printer name from storage */
   getPrinterNameFromStorage?: () => Promise<string | null>;
+  /** Callback to get the current paper size from storage */
+  getPaperSizeFromStorage?: () => Promise<string | null>;
 }
 
 const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
@@ -81,7 +83,10 @@ const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
 /**
  * Internal options with required persistDir (defaults applied)
  */
-type NativePrinterInternalOptions = Omit<NativePrinterOptions, "persistDir"> & {
+type NativePrinterInternalOptions = Omit<
+  NativePrinterOptions,
+  "persistDir" | "getPrinterNameFromStorage" | "getPaperSizeFromStorage"
+> & {
   persistDir: string;
 };
 
@@ -100,6 +105,7 @@ export class NativePrinter extends BasePrinter {
   private printer: Printer | null = null;
   private printerAvailable = false;
   private getPrinterNameFromStorage?: () => Promise<string | null>;
+  private getPaperSizeFromStorage?: () => Promise<string | null>;
 
   constructor(options: NativePrinterOptions = {}) {
     super();
@@ -117,13 +123,8 @@ export class NativePrinter extends BasePrinter {
         ? options.quality
         : "normal";
     const paperSize =
-      options.paperSize === "A4" ||
-      options.paperSize === "Letter" ||
-      options.paperSize === "Legal" ||
-      options.paperSize === "A3" ||
-      options.paperSize === "A5" ||
-      options.paperSize === "Tabloid"
-        ? options.paperSize
+      typeof options.paperSize === "string" && options.paperSize.trim()
+        ? options.paperSize.trim()
         : undefined;
     const persistDir =
       typeof options.persistDir === "string" && options.persistDir.trim()
@@ -140,6 +141,7 @@ export class NativePrinter extends BasePrinter {
       persistDir,
     };
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
+    this.getPaperSizeFromStorage = options.getPaperSizeFromStorage;
   }
 
   protected async connect(): Promise<void> {
@@ -266,8 +268,14 @@ export class NativePrinter extends BasePrinter {
         jobName: `log-${safeJobId}`,
       };
 
-      if (this.options.paperSize) {
-        printOptions.paperSize = this.options.paperSize;
+      // Resolve paper size: storage > config > unset
+      let resolvedPaperSize: string | undefined = this.options.paperSize;
+      if (this.getPaperSizeFromStorage) {
+        const saved = await this.getPaperSizeFromStorage();
+        if (saved) resolvedPaperSize = saved;
+      }
+      if (resolvedPaperSize) {
+        printOptions.paperSize = resolvedPaperSize;
       }
 
       // Print the file

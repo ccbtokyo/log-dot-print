@@ -213,6 +213,12 @@ export class LogPrintApp {
         const sqliteStorage = this.queueStorage as SqliteStorage | undefined;
         return sqliteStorage?.getSetting ? await sqliteStorage.getSetting("printer.name") : null;
       },
+      getPaperSizeFromStorage: async () => {
+        const sqliteStorage = this.queueStorage as SqliteStorage | undefined;
+        return sqliteStorage?.getSetting
+          ? await sqliteStorage.getSetting("printer.paperSize")
+          : null;
+      },
     };
     this.printer = printerRegistry.create(this.config.printer.type, printerOptions);
     console.log("[App] Printer created, initializing...");
