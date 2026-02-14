@@ -1,2 +1,11 @@
 [test]
 preload = ["./src/printers/__tests__/printers-mock.ts"]
+coverageSkipTestFiles = true
+coverageReporter = ["text", "lcov"]
+coverageDir = "coverage"
+coveragePathIgnorePatterns = [
+  "src/ui/**",
+  "src/printers/escpos-modules.d.ts",
+  "dist/**",
+]
+coverageThreshold = { lines = 0.6, functions = 0.6, statements = 0.6 }
