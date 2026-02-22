@@ -8,14 +8,14 @@
  * On Windows, uses Node.js subprocess to work around Bun + Playwright issue:
  * https://github.com/oven-sh/bun/issues/23826
  *
+ * @related src/printers/converters/subprocess-utils.ts (isWindows, getHelperScriptPath)
  * @related src/printers/native.ts (NativePrinter)
  * @related src/printers/replay-formatter.ts (ReplayFormatter)
  * @related src/core/types.ts (ImageConversionConfig)
  * @related scripts/playwright-render.cjs (Windows subprocess helper)
  */
 
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { isWindows, getHelperScriptPath, isNodeAvailable } from "./subprocess-utils.js";
 
 // Playwright types (dynamic import - playwright is optional)
 type Browser = {
@@ -71,23 +71,6 @@ type PlaywrightModule = {
 let playwrightModule: PlaywrightModule | null = null;
 
 /**
- * Check if running on Windows
- */
-function isWindows(): boolean {
-  return process.platform === "win32";
-}
-
-/**
- * Get the path to the playwright-render.js helper script
- */
-function getHelperScriptPath(): string {
-  // Get the directory of this module
-  const currentDir = dirname(fileURLToPath(import.meta.url));
-  // Navigate to scripts directory from src/printers/converters
-  return resolve(currentDir, "../../../scripts/playwright-render.cjs");
-}
-
-/**
  * Load playwright module dynamically
  */
 async function loadPlaywrightModule(): Promise<PlaywrightModule> {
@@ -112,7 +95,7 @@ async function loadPlaywrightModule(): Promise<PlaywrightModule> {
  * Render HTML to image using Node.js subprocess (for Windows)
  */
 async function renderViaSubprocess(html: string, width: number): Promise<Buffer> {
-  const scriptPath = getHelperScriptPath();
+  const scriptPath = getHelperScriptPath("image");
   console.log(`[ImageConverter] Using Node.js subprocess for Windows: ${scriptPath}`);
 
   const input = JSON.stringify({ html, width });
@@ -229,7 +212,7 @@ export class ImageConverter {
       setTimeout(() => {
         reject(
           new Error(
-            `Browser launch timed out after ${launchTimeout}ms. Chromium may not be installed correctly. Run: bunx playwright install chromium`,
+            `Browser launch timed out after ${launchTimeout}ms. Chromium may not be installed correctly. Run: npx playwright install chromium`,
           ),
         );
       }, launchTimeout);
@@ -371,7 +354,12 @@ export class ImageConverter {
     if (isWindows()) {
       // On Windows, check if Node.js and the helper script exist
       try {
-        const scriptPath = getHelperScriptPath();
+        if (!(await isNodeAvailable())) {
+          console.log("[ImageConverter] Node.js not found (required for Windows subprocess mode)");
+          return false;
+        }
+
+        const scriptPath = getHelperScriptPath("image");
         const scriptFile = Bun.file(scriptPath);
         const exists = await scriptFile.exists();
 

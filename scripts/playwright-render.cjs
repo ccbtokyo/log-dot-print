@@ -27,15 +27,17 @@ async function main() {
   try {
     params = JSON.parse(input);
   } catch (err) {
-    console.log(JSON.stringify({ success: false, error: `Invalid JSON input: ${err.message}` }));
-    process.exit(1);
+    process.stdout.write(JSON.stringify({ success: false, error: `Invalid JSON input: ${err.message}` }) + "\n");
+    process.exitCode = 1;
+    return;
   }
 
   const { html, width = 2835 } = params;
 
   if (!html) {
-    console.log(JSON.stringify({ success: false, error: "Missing required 'html' parameter" }));
-    process.exit(1);
+    process.stdout.write(JSON.stringify({ success: false, error: "Missing required 'html' parameter" }) + "\n");
+    process.exitCode = 1;
+    return;
   }
 
   let browser = null;
@@ -74,11 +76,13 @@ async function main() {
 
     // Output base64-encoded image
     const base64 = screenshot.toString("base64");
-    console.log(JSON.stringify({ success: true, image: base64 }));
-    process.exit(0);
+    const output = JSON.stringify({ success: true, image: base64 });
+    await new Promise((resolve, reject) => {
+      process.stdout.write(output + "\n", (err) => (err ? reject(err) : resolve()));
+    });
   } catch (err) {
-    console.log(JSON.stringify({ success: false, error: err.message }));
-    process.exit(1);
+    process.stdout.write(JSON.stringify({ success: false, error: err.message }) + "\n");
+    process.exitCode = 1;
   } finally {
     if (browser) {
       await browser.close();
