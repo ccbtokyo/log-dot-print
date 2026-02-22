@@ -581,6 +581,47 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("Toshi");
       expect(html).not.toContain('<div class="npc-section-header">');
     });
+
+    test("unwraps { data: { ... } } envelope for conversation", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          data: {
+            npc: { replay_id: "r1", nickname: "sho" },
+            dialogue: [
+              { role: "player", text: "こんにちは" },
+              { role: "npc", text: "やあ！" },
+            ],
+          },
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).not.toContain('class="error"');
+      expect(html).toContain("sho");
+      expect(html).toContain("こんにちは");
+      expect(html).toContain("やあ！");
+    });
+
+    test("unwraps { data: { ... } } envelope for respawn-only", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          data: {
+            respawn: { nickname: "Toshi", age: "30s", gender: "male" },
+          },
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).not.toContain('class="error"');
+      expect(html).toContain('class="player-footer"');
+      expect(html).toContain("Toshi");
+    });
   });
 
   describe("configuration", () => {

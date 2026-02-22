@@ -81,13 +81,15 @@ export class ReplayFormatter implements LogFormatterPlugin {
       if (!this.isRecord(parsed)) {
         return this.renderError("Invalid format: expected a gameplay JSON object");
       }
-      const hasNpc = this.isRecord(parsed.npc);
-      const hasDialogue = Array.isArray(parsed.dialogue);
-      const hasRespawn = this.isRecord(parsed.respawn);
+      // Unwrap { data: { ... } } envelope if present
+      const inner = this.isRecord(parsed.data) ? parsed.data : parsed;
+      const hasNpc = this.isRecord(inner.npc);
+      const hasDialogue = Array.isArray(inner.dialogue);
+      const hasRespawn = this.isRecord(inner.respawn);
       if (!hasNpc && !hasDialogue && !hasRespawn) {
         return this.renderError("Invalid format: expected 'npc'+'dialogue' and/or 'respawn' field");
       }
-      payload = parsed as unknown as GameplayPayload;
+      payload = inner as unknown as GameplayPayload;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return this.renderError(`JSON parse error: ${errorMessage}`);
