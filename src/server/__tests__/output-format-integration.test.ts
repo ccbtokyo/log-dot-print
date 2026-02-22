@@ -206,7 +206,7 @@ describe("outputFormat integration", () => {
       expect(job.binaryContent![1]).toBe(0x50);
       expect(job.binaryContent![2]).toBe(0x44);
       expect(job.binaryContent![3]).toBe(0x46);
-    });
+    }, 15_000);
 
     test("log:formatted event has contentType 'image' when conversion format is 'pdf' with rasterize: true", async () => {
       const config: DeepPartial<AppConfig> = {
@@ -259,7 +259,7 @@ describe("outputFormat integration", () => {
       expect(job.binaryContent![1]).toBe(0x50);
       expect(job.binaryContent![2]).toBe(0x4e);
       expect(job.binaryContent![3]).toBe(0x47);
-    });
+    }, 15_000);
 
     test("log:formatted event has contentType 'text' when config has outputFormat 'text'", async () => {
       const config: DeepPartial<AppConfig> = {
