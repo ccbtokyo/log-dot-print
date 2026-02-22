@@ -84,10 +84,14 @@ async function printPdfWithSumatraPDF(
     printer: printerName,
     silent: true,
     copies: options.copies,
-    orientation: options.landscape ? "landscape" : "portrait",
     monochrome: !options.color,
     scale: options.fitToPage ? "fit" : "noscale",
   };
+  // orientation 未指定 → SumatraPDF が PDF ページサイズから自動判定。
+  // "portrait" を常に送ると 15x11 等の横長用紙で width 圧縮が発生する。
+  if (options.landscape) {
+    printOptions.orientation = "landscape";
+  }
   if (options.duplex) {
     printOptions.side = "duplex";
   }
@@ -96,8 +100,10 @@ async function printPdfWithSumatraPDF(
   }
   if (options.paperKind) {
     printOptions.paperKind = options.paperKind;
-  }
-  if (rawPaperSize && !rawPaperSize.startsWith("Custom.")) {
+    // paperKind sets dmPaperSize directly — paper= must NOT be sent.
+    // Both together causes SumatraPDF to resolve paper= name first,
+    // producing an incorrect render size (width compression).
+  } else if (rawPaperSize && !rawPaperSize.startsWith("Custom.")) {
     // Pass raw paper name directly — Windows driver form names
     // (e.g. "15x11", "Fanfold 15 x 11 1/2 inch") are not CUPS-normalizable,
     // so we bypass normalizePaperName() and hand the value through as-is.
@@ -139,6 +145,8 @@ export interface NativePrinterOptions {
   getPrinterNameFromStorage?: () => Promise<string | null>;
   /** Callback to get the current paper size from storage */
   getPaperSizeFromStorage?: () => Promise<string | null>;
+  /** Callback to get the current paper kind (DEVMODE dmPaperSize) from storage */
+  getPaperKindFromStorage?: () => Promise<number | null>;
 }
 
 const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
@@ -148,7 +156,7 @@ const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
  */
 type NativePrinterInternalOptions = Omit<
   NativePrinterOptions,
-  "persistDir" | "getPrinterNameFromStorage" | "getPaperSizeFromStorage"
+  "persistDir" | "getPrinterNameFromStorage" | "getPaperSizeFromStorage" | "getPaperKindFromStorage"
 > & {
   persistDir: string;
 };
@@ -169,6 +177,7 @@ export class NativePrinter extends BasePrinter {
   private printerAvailable = false;
   private getPrinterNameFromStorage?: () => Promise<string | null>;
   private getPaperSizeFromStorage?: () => Promise<string | null>;
+  private getPaperKindFromStorage?: () => Promise<number | null>;
 
   private isWindowsPlatform(): boolean {
     return process.platform === "win32";
@@ -222,6 +231,7 @@ export class NativePrinter extends BasePrinter {
     };
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
     this.getPaperSizeFromStorage = options.getPaperSizeFromStorage;
+    this.getPaperKindFromStorage = options.getPaperKindFromStorage;
   }
 
   protected async connect(): Promise<void> {
@@ -359,13 +369,22 @@ export class NativePrinter extends BasePrinter {
         storedPrinterPaperSize: this.options.paperSize,
       });
 
+      // Resolve paperKind: storage > constructor > undefined
+      const storagePaperKind = this.getPaperKindFromStorage
+        ? await this.getPaperKindFromStorage()
+        : null;
+      const resolvedPaperKind = storagePaperKind ?? this.options.paperKind;
+      const effectiveOptions: NativePrinterInternalOptions = resolvedPaperKind
+        ? { ...this.options, paperKind: resolvedPaperKind }
+        : this.options;
+
       // Print the file
       if (this.isWindowsPlatform() && job.contentType === "pdf") {
         // Windows + PDF: delegate to SumatraPDF via pdf-to-printer.
         // Avoids the RAW datatype issue where PDF binary is sent directly
         // to the printer, causing metadata like %PDF-1.4 to be printed as text.
         // Pass raw paper name — CUPS normalization does not apply here.
-        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, this.options, resolved);
+        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, effectiveOptions, resolved);
       } else {
         // Normalize paper size for CUPS / @printers/printers path
         if (resolved) {

@@ -143,7 +143,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const css = `
     @page {
       ${pageSizeRule}
-      margin: 10mm 0;
+      margin: 0;
     }
     * {
       box-sizing: border-box;

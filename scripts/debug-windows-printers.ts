@@ -96,47 +96,32 @@ $items | ConvertTo-Json -Depth 4 -Compress
 `;
 
 const PAPERS_PS_SCRIPT = `
+Add-Type -AssemblyName System.Drawing
+
 $inputName = [Environment]::GetEnvironmentVariable("LOG_DOT_PRINT_PRINTER")
-$target = $null
+$settings = New-Object System.Drawing.Printing.PrinterSettings
 
-if ([string]::IsNullOrWhiteSpace($inputName)) {
-  $target = Get-CimInstance Win32_Printer -Filter "Default=True" | Select-Object -First 1
-  if ($null -eq $target) {
-    $target = Get-CimInstance Win32_Printer | Select-Object -First 1
-  }
-} else {
-  $escaped = $inputName.Replace("'", "''")
-  $target = Get-CimInstance Win32_Printer -Filter ("Name='" + $escaped + "'") | Select-Object -First 1
-  if ($null -eq $target) {
-    throw ("Printer not found: " + $inputName)
-  }
+if (-not [string]::IsNullOrWhiteSpace($inputName)) {
+  $settings.PrinterName = $inputName
 }
 
-if ($null -eq $target) {
-  throw "No printer found on this machine."
+if (-not $settings.IsValid) {
+  throw ("Printer not valid: " + $settings.PrinterName)
 }
 
-$names = @($target.PrinterPaperNames)
-$kinds = @($target.PaperSizesSupported)
-$count = [Math]::Max($names.Count, $kinds.Count)
+$isDefault = $settings.IsDefaultPrinter
 $papers = @()
 
-for ($i = 0; $i -lt $count; $i++) {
-  $paperName = $null
-  if ($i -lt $names.Count) { $paperName = [string]$names[$i] }
-
-  $paperKind = $null
-  if ($i -lt $kinds.Count) { $paperKind = [int]$kinds[$i] }
-
+foreach ($ps in $settings.PaperSizes) {
   $papers += [PSCustomObject]@{
-    paperSize = $paperName
-    paperKind = $paperKind
+    paperSize = [string]$ps.PaperName
+    paperKind = [int]$ps.RawKind
   }
 }
 
 [PSCustomObject]@{
-  printerName = [string]$target.Name
-  isDefault = [bool]$target.Default
+  printerName = [string]$settings.PrinterName
+  isDefault = [bool]$isDefault
   papers = $papers
 } | ConvertTo-Json -Depth 6 -Compress
 `;

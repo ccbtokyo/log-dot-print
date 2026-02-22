@@ -114,7 +114,7 @@ export class HtmlFormatter implements LogFormatterPlugin {
     const css = `
     @page {
       ${pageSizeRule}
-      margin: 10mm;
+      margin: 0;
     }
     * {
       box-sizing: border-box;

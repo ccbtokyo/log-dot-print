@@ -310,7 +310,9 @@ export class PdfConverter {
       }
 
       // Load HTML content
-      await page.setContent(html, {
+      // In cropToContent mode, neutralize @page CSS to prevent Chromium from
+      // scaling content when the CSS page size differs from the dynamic PDF size.
+      await page.setContent(cropToContent ? this.neutralizePageCss(html) : html, {
         waitUntil: "networkidle",
       });
 
@@ -396,6 +398,19 @@ export class PdfConverter {
   }
 
   /**
+   * Inject a CSS override that neutralizes any @page { size } declaration in the
+   * source HTML. This prevents Chromium from scaling the content when the CSS
+   * page size differs from the programmatic PDF page size used in contentFit /
+   * cropToContent modes.
+   */
+  private neutralizePageCss(html: string): string {
+    return html.replace(
+      "</head>",
+      "<style>@page { size: auto !important; margin: 0 !important; }</style></head>",
+    );
+  }
+
+  /**
    * Generate a dynamically-sized PDF whose height matches content.
    * Uses zero @page margin (the HTML `body { padding }` provides visual margin)
    * and measures scrollHeight to determine the exact page height needed.
@@ -414,7 +429,7 @@ export class PdfConverter {
       // (scrollHeight >= viewport height, so a large viewport masks small content)
       await page.setViewportSize({ width: widthPx, height: 1 });
 
-      await page.setContent(html, { waitUntil: "networkidle" });
+      await page.setContent(this.neutralizePageCss(html), { waitUntil: "networkidle" });
       await page.evaluate(() => (globalThis as any).document.fonts.ready);
 
       const scrollHeightPx = await page.evaluate(

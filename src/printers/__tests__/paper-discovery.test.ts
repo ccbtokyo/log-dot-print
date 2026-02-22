@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import { getAvailablePaperSizes, FALLBACK_PAPER_SIZES } from "../paper-discovery.js";
+import type { PaperSizeInfo } from "../../core/types.js";
 
 /**
  * Tests for paper-discovery service
@@ -108,6 +109,105 @@ describe("paper-discovery", () => {
       const output = "A4\r\nLetter\r\nLegal\r\n";
       const result = parsePowerShellOutput(output);
       expect(result).toEqual(["A4", "Letter", "Legal"]);
+    });
+  });
+
+  describe("parseWindowsPaperSizesOutput", () => {
+    let parseWindowsPaperSizesOutput: (output: string) => PaperSizeInfo[];
+
+    beforeEach(async () => {
+      const mod = await import("../paper-discovery.js");
+      parseWindowsPaperSizesOutput = mod.parseWindowsPaperSizesOutput;
+    });
+
+    test("parses JSON array with PaperName and RawKind", () => {
+      const output = JSON.stringify([
+        { PaperName: "A4", RawKind: 9 },
+        { PaperName: "Letter", RawKind: 1 },
+        { PaperName: "15x11", RawKind: 261 },
+      ]);
+      const result = parseWindowsPaperSizesOutput(output);
+      expect(result).toEqual([
+        { name: "A4", rawKind: 9 },
+        { name: "Letter", rawKind: 1 },
+        { name: "15x11", rawKind: 261 },
+      ]);
+    });
+
+    test("parses single object (non-array) when only one paper size", () => {
+      const output = JSON.stringify({ PaperName: "A4", RawKind: 9 });
+      const result = parseWindowsPaperSizesOutput(output);
+      expect(result).toEqual([{ name: "A4", rawKind: 9 }]);
+    });
+
+    test("handles missing RawKind as null", () => {
+      const output = JSON.stringify([{ PaperName: "Custom" }]);
+      const result = parseWindowsPaperSizesOutput(output);
+      expect(result).toEqual([{ name: "Custom", rawKind: null }]);
+    });
+
+    test("handles missing PaperName as empty string", () => {
+      const output = JSON.stringify([{ RawKind: 9 }]);
+      const result = parseWindowsPaperSizesOutput(output);
+      expect(result).toEqual([{ name: "", rawKind: 9 }]);
+    });
+
+    test("handles non-numeric RawKind as null", () => {
+      const output = JSON.stringify([{ PaperName: "A4", RawKind: "invalid" }]);
+      const result = parseWindowsPaperSizesOutput(output);
+      expect(result).toEqual([{ name: "A4", rawKind: null }]);
+    });
+
+    test("returns empty array for invalid JSON", () => {
+      const result = parseWindowsPaperSizesOutput("not json");
+      expect(result).toEqual([]);
+    });
+
+    test("returns empty array for empty string", () => {
+      const result = parseWindowsPaperSizesOutput("");
+      expect(result).toEqual([]);
+    });
+
+    test("returns empty array for empty JSON array", () => {
+      const result = parseWindowsPaperSizesOutput("[]");
+      expect(result).toEqual([]);
+    });
+
+    test("filters entries with invalid PaperName type", () => {
+      const output = JSON.stringify([
+        { PaperName: "A4", RawKind: 9 },
+        { PaperName: 123, RawKind: 5 },
+      ]);
+      const result = parseWindowsPaperSizesOutput(output);
+      // Non-string PaperName converted to empty string
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ name: "A4", rawKind: 9 });
+      expect(result[1]).toEqual({ name: "", rawKind: 5 });
+    });
+  });
+
+  describe("getAvailablePaperSizes - paperSizeDetails", () => {
+    test("returns paperSizeDetails in result", async () => {
+      const result = await getAvailablePaperSizes(null);
+      expect(result.paperSizeDetails).toBeDefined();
+      expect(Array.isArray(result.paperSizeDetails)).toBe(true);
+      expect(result.paperSizeDetails.length).toBe(result.paperSizes.length);
+    });
+
+    test("paperSizeDetails names match paperSizes", async () => {
+      const result = await getAvailablePaperSizes(null);
+      const detailNames = result.paperSizeDetails.map((d) => d.name);
+      expect(detailNames).toEqual(result.paperSizes);
+    });
+
+    test("fallback paperSizeDetails have rawKind null", async () => {
+      // On non-Windows, if fallback is used, rawKind should be null
+      const result = await getAvailablePaperSizes("NonExistentPrinter12345");
+      if (result.source === "fallback") {
+        for (const detail of result.paperSizeDetails) {
+          expect(detail.rawKind).toBeNull();
+        }
+      }
     });
   });
 

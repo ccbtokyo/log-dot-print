@@ -485,7 +485,8 @@ describe("NativePrinter", () => {
       const [, printOptions] = mockPrint.mock.calls[0];
       expect(printOptions.printer).toBe("EPSON_PX1VL");
       expect(printOptions.monochrome).toBe(true);
-      expect(printOptions.orientation).toBe("portrait");
+      // orientation is NOT sent — SumatraPDF auto-detects from PDF page size
+      expect(printOptions.orientation).toBeUndefined();
       expect(printOptions.silent).toBe(true);
 
       await printer.shutdown();
@@ -785,10 +786,88 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
+    test("does not send paperSize when paperKind is configured", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "15x11",
+        paperKind: 120,
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      // paperKind sets dmPaperSize directly — paper= must NOT be sent
+      // to avoid SumatraPDF resolving an incorrect render size
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperKind).toBe(120);
+      expect(printOptions.paperSize).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
     test("does not set paperKind on SumatraPDF when not configured", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperKind).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
+    test("uses getPaperKindFromStorage value over constructor paperKind", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperKind: 9,
+        persistDir: customPersistDir,
+        getPaperKindFromStorage: async () => 261,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperKind).toBe(261);
+
+      await printer.shutdown();
+    });
+
+    test("falls back to constructor paperKind when storage returns null", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperKind: 9,
+        persistDir: customPersistDir,
+        getPaperKindFromStorage: async () => null,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperKind).toBe(9);
+
+      await printer.shutdown();
+    });
+
+    test("does not set paperKind when both storage and constructor are unset", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+        getPaperKindFromStorage: async () => null,
       });
       enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);

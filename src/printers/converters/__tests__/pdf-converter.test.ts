@@ -339,6 +339,28 @@ describe("PdfConverter", () => {
     });
   });
 
+  describe("neutralizePageCss", () => {
+    test("should inject @page override before </head>", () => {
+      const converter = new PdfConverter();
+      const html = `<html><head><style>@page { size: 15in 11in; }</style></head><body>Test</body></html>`;
+      const result = (converter as any).neutralizePageCss(html);
+
+      expect(result).toContain(
+        "<style>@page { size: auto !important; margin: 0 !important; }</style></head>",
+      );
+      // Original @page CSS should still be present (overridden by !important, not removed)
+      expect(result).toContain("@page { size: 15in 11in; }");
+    });
+
+    test("should not alter HTML without </head>", () => {
+      const converter = new PdfConverter();
+      const html = `<body>No head tag</body>`;
+      const result = (converter as any).neutralizePageCss(html);
+
+      expect(result).toBe(html);
+    });
+  });
+
   describe("subprocess support", () => {
     test("should set useSubprocess based on platform", () => {
       const converter = new PdfConverter();

@@ -26,6 +26,17 @@ const CSS_PX_PER_INCH = 96;
 /** mm per inch */
 const MM_PER_INCH = 25.4;
 
+/**
+ * Neutralize @page CSS to prevent Chromium from scaling content when the
+ * CSS page size differs from the programmatic PDF page size.
+ */
+function neutralizePageCss(html) {
+  return html.replace(
+    "</head>",
+    "<style>@page { size: auto !important; margin: 0 !important; }</style></head>",
+  );
+}
+
 async function main() {
   let input = "";
 
@@ -127,7 +138,7 @@ async function renderCrop(page, html, params) {
     : Math.round((paperWidth / MM_PER_INCH) * CSS_PX_PER_INCH);
 
   await page.setViewportSize({ width: widthPx, height: 800 });
-  await page.setContent(html, { waitUntil: "networkidle" });
+  await page.setContent(neutralizePageCss(html), { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
 
   const contentHeightPx = await page.evaluate(() => document.body.scrollHeight);
@@ -158,7 +169,7 @@ async function renderContentFit(page, html, contentFit, landscape) {
 
   // Use a minimal viewport height so scrollHeight reports actual content height
   await page.setViewportSize({ width: widthPx, height: 1 });
-  await page.setContent(html, { waitUntil: "networkidle" });
+  await page.setContent(neutralizePageCss(html), { waitUntil: "networkidle" });
   await page.evaluate(() => document.fonts.ready);
 
   const scrollHeightPx = await page.evaluate(

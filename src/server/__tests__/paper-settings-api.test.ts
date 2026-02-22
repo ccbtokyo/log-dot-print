@@ -39,11 +39,29 @@ describe("Paper Settings API", () => {
 
       const data = await response.json();
       expect(data).toHaveProperty("paperSizes");
+      expect(data).toHaveProperty("paperSizeDetails");
       expect(data).toHaveProperty("source");
       expect(data).toHaveProperty("printerName");
       expect(Array.isArray(data.paperSizes)).toBe(true);
       expect(data.paperSizes.length).toBeGreaterThan(0);
       expect(["dynamic", "fallback"]).toContain(data.source);
+    });
+
+    test("paperSizeDetails has same length as paperSizes", async () => {
+      const response = await fetch(`${baseUrl}/api/papers`);
+      const data = await response.json();
+      expect(Array.isArray(data.paperSizeDetails)).toBe(true);
+      expect(data.paperSizeDetails.length).toBe(data.paperSizes.length);
+    });
+
+    test("each paperSizeDetail has name and rawKind fields", async () => {
+      const response = await fetch(`${baseUrl}/api/papers`);
+      const data = await response.json();
+      for (const detail of data.paperSizeDetails) {
+        expect(detail).toHaveProperty("name");
+        expect(detail).toHaveProperty("rawKind");
+        expect(typeof detail.name).toBe("string");
+      }
     });
   });
 
@@ -54,6 +72,7 @@ describe("Paper Settings API", () => {
 
       const data = await response.json();
       expect(data.currentPaperSize).toBeNull();
+      expect(data.currentPaperKind).toBeNull();
       expect(data.isDefault).toBe(true);
     });
   });
@@ -149,6 +168,132 @@ describe("Paper Settings API", () => {
         body: JSON.stringify({ paperSize: "" }),
       });
       expect(response.status).toBe(400);
+    });
+
+    test("saves paperKind alongside paperSize", async () => {
+      const response = await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: 9 }),
+      });
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.success).toBe(true);
+      expect(data.paperKind).toBe(9);
+
+      // Verify via GET
+      const getResponse = await fetch(`${baseUrl}/api/settings/paper`);
+      const getData = await getResponse.json();
+      expect(getData.currentPaperKind).toBe(9);
+    });
+
+    test("clears paperKind when paperSize is null", async () => {
+      // Set paperKind first
+      await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: 9 }),
+      });
+
+      // Clear paperSize (should also clear paperKind)
+      await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: null }),
+      });
+
+      const getResponse = await fetch(`${baseUrl}/api/settings/paper`);
+      const getData = await getResponse.json();
+      expect(getData.currentPaperSize).toBeNull();
+      expect(getData.currentPaperKind).toBeNull();
+    });
+
+    test("saves paperSize without paperKind when paperKind not provided", async () => {
+      const response = await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4" }),
+      });
+      expect(response.status).toBe(200);
+
+      const getResponse = await fetch(`${baseUrl}/api/settings/paper`);
+      const getData = await getResponse.json();
+      expect(getData.currentPaperSize).toBe("A4");
+      expect(getData.currentPaperKind).toBeNull();
+    });
+
+    test("clears stale paperKind when paperKind not provided on paperSize change", async () => {
+      // Set paperKind first
+      await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: 9 }),
+      });
+
+      // Change paperSize without providing paperKind — stale kind must be cleared
+      await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "Letter" }),
+      });
+
+      const getResponse = await fetch(`${baseUrl}/api/settings/paper`);
+      const getData = await getResponse.json();
+      expect(getData.currentPaperSize).toBe("Letter");
+      expect(getData.currentPaperKind).toBeNull();
+    });
+
+    test("returns 400 for non-integer paperKind", async () => {
+      const response = await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: 9.5 }),
+      });
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain("positive integer");
+    });
+
+    test("returns 400 for string paperKind", async () => {
+      const response = await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: "9" }),
+      });
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toContain("positive integer");
+    });
+
+    test("returns 400 for negative paperKind", async () => {
+      const response = await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: -1 }),
+      });
+      expect(response.status).toBe(400);
+    });
+
+    test("clears paperKind when paperKind is explicitly null", async () => {
+      // Set paperKind first
+      await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: 9 }),
+      });
+
+      // Update with null paperKind
+      await fetch(`${baseUrl}/api/settings/paper`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paperSize: "A4", paperKind: null }),
+      });
+
+      const getResponse = await fetch(`${baseUrl}/api/settings/paper`);
+      const getData = await getResponse.json();
+      expect(getData.currentPaperSize).toBe("A4");
+      expect(getData.currentPaperKind).toBeNull();
     });
   });
 });

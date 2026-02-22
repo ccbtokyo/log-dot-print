@@ -286,6 +286,7 @@ export class QueueController {
         const result = await getAvailablePaperSizes(savedPrinter);
         const response: PaperListResponse = {
           paperSizes: result.paperSizes,
+          paperSizeDetails: result.paperSizeDetails,
           source: result.source,
           printerName: result.printerName,
         };
@@ -303,9 +304,20 @@ export class QueueController {
         const savedPaperSize = sqliteStorage?.getSetting
           ? await sqliteStorage.getSetting("printer.paperSize")
           : null;
+        const savedPaperKindRaw = sqliteStorage?.getSetting
+          ? await sqliteStorage.getSetting("printer.paperKind")
+          : null;
+        let currentPaperKind: number | null = null;
+        if (savedPaperKindRaw !== null) {
+          const parsed = parseInt(savedPaperKindRaw, 10);
+          if (Number.isFinite(parsed) && parsed > 0) {
+            currentPaperKind = parsed;
+          }
+        }
 
         const response: PaperSettings = {
           currentPaperSize: savedPaperSize ?? null,
+          currentPaperKind,
           isDefault: savedPaperSize === null,
         };
         return c.json(response);
@@ -322,7 +334,7 @@ export class QueueController {
         return c.json({ error: "Storage not configured for settings" }, 503);
       }
 
-      let body: { paperSize?: string | null };
+      let body: { paperSize?: string | null; paperKind?: number | null };
       try {
         body = await c.req.json();
       } catch {
@@ -333,13 +345,14 @@ export class QueueController {
         return c.json({ error: "Missing paperSize field" }, 400);
       }
 
-      const { paperSize } = body;
+      const { paperSize, paperKind } = body;
 
       try {
         if (paperSize === null) {
           await sqliteStorage.deleteSetting("printer.paperSize");
-          console.log("[QueueController] Paper size setting cleared (using default)");
-          return c.json({ success: true, paperSize: null });
+          await sqliteStorage.deleteSetting("printer.paperKind");
+          console.log("[QueueController] Paper size/kind setting cleared (using default)");
+          return c.json({ success: true, paperSize: null, paperKind: null });
         }
 
         if (typeof paperSize !== "string" || !paperSize.trim()) {
@@ -365,8 +378,44 @@ export class QueueController {
         }
 
         await sqliteStorage.setSetting("printer.paperSize", trimmed);
-        console.log(`[QueueController] Paper size setting saved: ${trimmed}`);
-        return c.json({ success: true, paperSize: trimmed });
+
+        // Handle paperKind: save, clear, or reject invalid values.
+        // When paperKind is not provided, clear the stored value to avoid
+        // stale dmPaperSize mismatching the new paperSize.
+        let savedPaperKind: number | null = null;
+        if ("paperKind" in body && paperKind !== undefined && paperKind !== null) {
+          // Validate paperKind is a positive integer
+          if (
+            typeof paperKind !== "number" ||
+            !Number.isFinite(paperKind) ||
+            !Number.isInteger(paperKind) ||
+            paperKind <= 0
+          ) {
+            return c.json({ error: "paperKind must be a positive integer or null" }, 400);
+          }
+          // Validate paperKind matches the paperSize in discovery data (when rawKind is known)
+          const matchingDetail = available.paperSizeDetails.find((d) => d.name === trimmed);
+          if (
+            matchingDetail !== undefined &&
+            matchingDetail.rawKind !== null &&
+            matchingDetail.rawKind !== paperKind
+          ) {
+            return c.json(
+              {
+                error: `paperKind ${paperKind} does not match paper size "${trimmed}" (expected ${matchingDetail.rawKind})`,
+              },
+              400,
+            );
+          }
+          await sqliteStorage.setSetting("printer.paperKind", String(paperKind));
+          savedPaperKind = paperKind;
+          console.log(`[QueueController] Paper setting saved: ${trimmed} (paperKind=${paperKind})`);
+        } else {
+          await sqliteStorage.deleteSetting("printer.paperKind");
+          console.log(`[QueueController] Paper size setting saved: ${trimmed} (paperKind cleared)`);
+        }
+
+        return c.json({ success: true, paperSize: trimmed, paperKind: savedPaperKind });
       } catch (error) {
         console.error("[QueueController] Failed to save paper setting:", error);
         return c.json({ error: "Failed to save paper setting", details: String(error) }, 500);
