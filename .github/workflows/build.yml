@@ -72,6 +72,9 @@ jobs:
             --external @serialport/* \
             --external escpos-usb \
             --external @printers/printers \
+            --external playwright \
+            --external playwright-core \
+            --external pdf-to-printer \
             --target=${{ matrix.target }} \
             src/cli.ts --outfile=dist/${{ matrix.artifact }}
 
