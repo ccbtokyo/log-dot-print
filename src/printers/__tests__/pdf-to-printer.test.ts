@@ -515,7 +515,7 @@ describe("PdfToPrinterPrinter", () => {
       await printer.print(job);
 
       expect(job.filePath).toBeDefined();
-      expect(job.filePath).toContain("data/prints");
+      expect(job.filePath).toMatch(/data[/\\]prints/);
 
       await printer.shutdown();
     });
