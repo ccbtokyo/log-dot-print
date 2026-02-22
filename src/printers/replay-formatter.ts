@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import type {
   LogEntry,
   LogFormatterPlugin,
@@ -142,7 +144,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       ? `
     @font-face {
       font-family: '${this.escapeCssString(primaryFontFamily)}';
-      src: url('${this.escapeCssString(safeFontPath)}') format('${this.getFontFormat(safeFontPath)}');
+      src: url('${this.escapeCssString(this.toFontFileUrl(safeFontPath))}') format('${this.getFontFormat(safeFontPath)}');
       font-weight: normal;
       font-style: normal;
     }`
@@ -474,6 +476,14 @@ export class ReplayFormatter implements LogFormatterPlugin {
   /**
    * Get font format from file extension
    */
+  /**
+   * Convert a font file path to a file:// URL for Playwright setContent() compatibility
+   */
+  private toFontFileUrl(fontPath: string): string {
+    const absolutePath = resolve(fontPath);
+    return pathToFileURL(absolutePath).href;
+  }
+
   private getFontFormat(fontPath: string): string {
     const ext = fontPath.split(".").pop()?.toLowerCase();
     switch (ext) {

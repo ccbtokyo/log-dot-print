@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import type {
   LogEntry,
   LogFormatterPlugin,
@@ -90,11 +92,12 @@ export class HtmlFormatter implements LogFormatterPlugin {
       pdfPaperSize,
     } = this.config;
 
-    const fontFaceRule = fontPath
+    const fontFileUrl = fontPath ? this.toFontFileUrl(fontPath) : undefined;
+    const fontFaceRule = fontFileUrl
       ? `
     @font-face {
       font-family: '${fontFamily}';
-      src: url('${fontPath}') format('${this.getFontFormat(fontPath)}');
+      src: url('${fontFileUrl}') format('${this.getFontFormat(fontPath!)}');
       font-weight: normal;
       font-style: normal;
     }`
@@ -250,6 +253,14 @@ export class HtmlFormatter implements LogFormatterPlugin {
     if (normalized === "error" || normalized === "err") return "level-error";
     if (normalized === "debug") return "level-debug";
     return "level-info";
+  }
+
+  /**
+   * Convert a font file path to a file:// URL for Playwright setContent() compatibility
+   */
+  private toFontFileUrl(fontPath: string): string {
+    const absolutePath = resolve(fontPath);
+    return pathToFileURL(absolutePath).href;
   }
 
   /**

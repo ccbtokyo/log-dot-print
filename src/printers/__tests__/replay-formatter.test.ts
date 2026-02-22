@@ -539,6 +539,41 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("truetype");
     });
 
+    test("resolves relative fontPath to absolute file:// URL", async () => {
+      await formatter.initialize(
+        eventBus,
+        createConfig({
+          fontFamily: "CustomFont",
+          fontPath: "./fonts/custom.ttf",
+        }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("@font-face");
+      // Relative path should be resolved to file:// absolute URL
+      expect(html).toContain("file://");
+      expect(html).toMatch(/file:\/\/.*fonts\/custom\.ttf/);
+      // Should NOT contain the raw relative path
+      expect(html).not.toContain("url('./fonts/custom.ttf')");
+    });
+
+    test("keeps absolute fontPath as file:// URL", async () => {
+      await formatter.initialize(
+        eventBus,
+        createConfig({
+          fontFamily: "CustomFont",
+          fontPath: "/usr/share/fonts/custom.ttf",
+        }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("file:///usr/share/fonts/custom.ttf");
+    });
+
     test("handles font family stacks with @font-face correctly", async () => {
       await formatter.initialize(
         eventBus,
