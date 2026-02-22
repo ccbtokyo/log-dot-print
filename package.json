@@ -16,6 +16,7 @@
     "start": "node dist/cli.js",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
+    "post": "bun scripts/post.ts",
     "verify": "bun run scripts/verify-endpoints.ts",
     "lint": "oxlint src",
     "lint:fix": "oxlint --fix src",
