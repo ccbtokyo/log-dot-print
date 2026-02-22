@@ -40,6 +40,19 @@ describe("CupsPrinter", () => {
       const job = createPrintJob({ contentType: "html" });
       expect(job.contentType).toBe("html");
     });
+
+    test("recognizes pdf contentType", () => {
+      const job = createPrintJob({ contentType: "pdf" });
+      expect(job.contentType).toBe("pdf");
+    });
+  });
+
+  describe("getTempFilePath content type extensions", () => {
+    test("getTempFilePath generates correct extension for pdf", () => {
+      const printer = new CupsPrinter();
+      const path = (printer as any).getTempFilePath("job-1", "pdf");
+      expect(path).toMatch(/print-job-1\.pdf$/);
+    });
   });
 
   describe("HTML to PDF conversion", () => {

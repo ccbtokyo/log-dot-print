@@ -47,6 +47,8 @@ function getFileExtension(contentType?: PrintContentType): string {
       return ".html";
     case "image":
       return ".png";
+    case "pdf":
+      return ".pdf";
     case "text":
     default:
       return ".txt";
@@ -209,13 +211,14 @@ export class NativePrinter extends BasePrinter {
       throw new Error("Printer not connected");
     }
 
-    // Determine content to write: binary for images, string for text/html/json
-    const isImageContent = job.contentType === "image" && job.binaryContent;
-    const contentBuffer = isImageContent
+    // Determine content to write: binary for images/pdf, string for text/html/json
+    const isBinaryContent =
+      (job.contentType === "image" || job.contentType === "pdf") && job.binaryContent;
+    const contentBuffer = isBinaryContent
       ? job.binaryContent!
       : Buffer.from(job.formattedContent ?? "", "utf8");
 
-    if (!isImageContent && typeof job.formattedContent !== "string") {
+    if (!isBinaryContent && typeof job.formattedContent !== "string") {
       throw new Error("Invalid job.formattedContent");
     }
 
@@ -253,7 +256,7 @@ export class NativePrinter extends BasePrinter {
 
     try {
       // Write content: binary for images, utf8 for text/html/json
-      if (isImageContent) {
+      if (isBinaryContent) {
         await writeFile(tempFile, contentBuffer, { flag: "wx" });
       } else {
         await writeFile(tempFile, job.formattedContent, { encoding: "utf8", flag: "wx" });

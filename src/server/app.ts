@@ -20,8 +20,9 @@ import {
   tryRegisterEscposPrinter,
   tryRegisterNativePrinter,
   createImageConverter,
+  createPdfConverter,
 } from "../printers/index.js";
-import type { ImageConverter } from "../printers/index.js";
+import type { ImageConverter, PdfConverter } from "../printers/index.js";
 import type { LogFormatterPlugin, PrintContentType } from "../core/index.js";
 import { SqliteStorage, QueuePersistenceHandler } from "../storage/index.js";
 import { HttpReceiver } from "./http-server.js";
@@ -110,6 +111,7 @@ export class LogPrintApp {
   private uiWebSocketHandler: UIWebSocketHandler | null = null;
   private staticMiddleware: StaticMiddleware | null = null;
   private imageConverter: ImageConverter | null = null;
+  private pdfConverter: PdfConverter | null = null;
 
   constructor(config: DeepPartial<AppConfig> = {}) {
     this.config = this.mergeConfig(defaultConfig, config);
@@ -182,22 +184,31 @@ export class LogPrintApp {
       );
     }
 
-    // Initialize image converter if enabled
-    console.log("[App] Checking image converter...");
+    // Initialize image/PDF converter if enabled
+    console.log("[App] Checking conversion config...");
     if (this.config.conversion?.enabled) {
-      console.log("[App] Image converter enabled, initializing...");
       const conversionConfig = this.config.conversion;
-      this.imageConverter = await createImageConverter({
-        format: conversionConfig.format,
-        width: conversionConfig.width,
-        grayscale: conversionConfig.grayscale,
-      });
-      if (this.imageConverter) {
-        await this.imageConverter.initialize();
-        console.log("[App] Image conversion enabled");
+      if (conversionConfig.format === "pdf") {
+        console.log("[App] PDF converter enabled, initializing...");
+        this.pdfConverter = await createPdfConverter();
+        if (this.pdfConverter) {
+          await this.pdfConverter.initialize();
+          console.log("[App] PDF conversion enabled");
+        }
+      } else {
+        console.log("[App] Image converter enabled, initializing...");
+        this.imageConverter = await createImageConverter({
+          format: conversionConfig.format,
+          width: conversionConfig.width,
+          grayscale: conversionConfig.grayscale,
+        });
+        if (this.imageConverter) {
+          await this.imageConverter.initialize();
+          console.log("[App] Image conversion enabled");
+        }
       }
     } else {
-      console.log("[App] Image converter not enabled, skipping");
+      console.log("[App] Conversion not enabled, skipping");
     }
 
     // Initialize formatter — inject stored paper size if not explicitly set in config
@@ -345,9 +356,12 @@ export class LogPrintApp {
       await this.storage.shutdown();
     }
 
-    // Stop image converter
+    // Stop converters
     if (this.imageConverter) {
       await this.imageConverter.shutdown();
+    }
+    if (this.pdfConverter) {
+      await this.pdfConverter.shutdown();
     }
 
     // Stop Bun server
@@ -494,7 +508,21 @@ export class LogPrintApp {
     );
     const job = createPrintJob(entry, formattedContent, contentType);
 
-    // Convert HTML to image if converter is enabled
+    // Convert HTML to PDF if PDF converter is enabled
+    if (this.pdfConverter && contentType === "html") {
+      try {
+        const pdfBuffer = await this.pdfConverter.convert(formattedContent);
+        job.binaryContent = pdfBuffer;
+        job.contentType = "pdf";
+        contentType = "pdf";
+        console.log(`[App] HTML converted to PDF (${pdfBuffer.length} bytes)`);
+      } catch (error) {
+        console.error("[App] Failed to convert HTML to PDF:", error);
+        // Fall back to original HTML content
+      }
+    }
+
+    // Convert HTML to image if image converter is enabled
     if (this.imageConverter && contentType === "html") {
       try {
         const imageBuffer = await this.imageConverter.convert(formattedContent);

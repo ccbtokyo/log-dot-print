@@ -113,7 +113,9 @@ export class CupsPrinter extends BasePrinter {
 
     const contentType: PrintContentType = job.contentType ?? "text";
 
-    if (contentType === "html") {
+    if (contentType === "pdf") {
+      await this.printPdf(job);
+    } else if (contentType === "html") {
       await this.printHtml(job);
     } else {
       await this.printText(job);
@@ -167,10 +169,29 @@ export class CupsPrinter extends BasePrinter {
   }
 
   /**
+   * Print pre-converted PDF content directly via lp command
+   */
+  private async printPdf(job: PrintJob): Promise<void> {
+    const pdfFile = this.getTempFilePath(job.id, "pdf");
+
+    try {
+      if (job.binaryContent) {
+        await writeFile(pdfFile, job.binaryContent);
+      } else {
+        await writeFile(pdfFile, job.formattedContent, "utf-8");
+      }
+      await this.executeLpCommand(pdfFile);
+    } finally {
+      await this.cleanupTempFile(pdfFile);
+    }
+  }
+
+  /**
    * Get temp file path with appropriate extension
    */
   private getTempFilePath(jobId: string, contentType: PrintContentType): string {
-    const ext = contentType === "html" ? "html" : "txt";
+    const extMap: Record<string, string> = { html: "html", pdf: "pdf" };
+    const ext = extMap[contentType] ?? "txt";
     return join(tmpdir(), `print-${jobId}.${ext}`);
   }
 

@@ -489,6 +489,32 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
+    test("uses .pdf extension for pdf contentType", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("pdf-ext-test");
+      job.contentType = "pdf";
+      // PDF magic bytes: %PDF
+      job.binaryContent = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
+      await printer.print(job);
+
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toMatch(/\.pdf$/);
+
+      // Verify binary content was written
+      const content = await readFile(job.filePath!);
+      expect(content[0]).toBe(0x25); // %
+      expect(content[1]).toBe(0x50); // P
+      expect(content[2]).toBe(0x44); // D
+      expect(content[3]).toBe(0x46); // F
+
+      await printer.shutdown();
+    });
+
     test("writes binary content for image contentType", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",

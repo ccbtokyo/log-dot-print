@@ -39,7 +39,7 @@ export type LogLevel = string;
 /**
  * Content type for print jobs
  */
-export type PrintContentType = "text" | "json" | "html" | "image";
+export type PrintContentType = "text" | "json" | "html" | "image" | "pdf";
 
 /**
  * Print job representing a formatted log ready for printing
@@ -238,13 +238,13 @@ export interface DiscoveredPrinter {
  * Image conversion configuration for dot impact printer support
  */
 export interface ImageConversionConfig {
-  /** Whether to enable HTML to image conversion */
+  /** Whether to enable HTML to image/PDF conversion */
   enabled: boolean;
-  /** Output image format */
-  format: "png" | "bmp";
-  /** Image width in pixels (default: 2835px for 15" continuous paper printable area) */
+  /** Output format: image (png/bmp) or pdf */
+  format: "png" | "bmp" | "pdf";
+  /** Image width in pixels (default: 2835px for 15" continuous paper printable area). Ignored for pdf. */
   width?: number;
-  /** Whether to convert to grayscale for dot impact printers */
+  /** Whether to convert to grayscale for dot impact printers. Ignored for pdf. */
   grayscale?: boolean;
 }
 

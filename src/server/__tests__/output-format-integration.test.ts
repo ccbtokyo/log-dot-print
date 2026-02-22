@@ -155,6 +155,59 @@ describe("outputFormat integration", () => {
       expect(receivedJobs[0].contentType).toBe("json");
     });
 
+    test("log:formatted event has contentType 'pdf' when conversion format is 'pdf' and html output", async () => {
+      const config: DeepPartial<AppConfig> = {
+        server: { port: 0, host: "127.0.0.1" },
+        printer: { type: "mock", options: { logToConsole: false } },
+        queue: { maxSize: 100, retryAttempts: 3, retryDelayMs: 1000 },
+        format: {
+          outputFormat: "html",
+          includeTimestamp: false,
+          includeSource: false,
+          includeLevel: false,
+        },
+        conversion: {
+          enabled: true,
+          format: "pdf",
+        },
+        storage: { enabled: false },
+        ui: { enabled: false },
+      };
+
+      app = new LogPrintApp(config);
+      await app.start();
+
+      // Listen for log:formatted event
+      const receivedJobs: PrintJob[] = [];
+      app.getEventBus().on("log:formatted", (job: PrintJob) => {
+        receivedJobs.push(job);
+      });
+
+      // Send a log via HTTP
+      const response = await fetch(`http://127.0.0.1:${(app as any).config.server.port}/api/log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "test pdf conversion" }),
+      });
+
+      expect(response.ok).toBe(true);
+
+      // Wait for the event to be processed (PDF conversion takes longer)
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      // Verify the job's contentType is "pdf" (converted from html)
+      expect(receivedJobs.length).toBeGreaterThan(0);
+      // After conversion, the job should have binary content and pdf type
+      const job = receivedJobs[0];
+      expect(job.contentType).toBe("pdf");
+      expect(job.binaryContent).toBeDefined();
+      // PDF magic bytes: %PDF
+      expect(job.binaryContent![0]).toBe(0x25);
+      expect(job.binaryContent![1]).toBe(0x50);
+      expect(job.binaryContent![2]).toBe(0x44);
+      expect(job.binaryContent![3]).toBe(0x46);
+    });
+
     test("log:formatted event has contentType 'text' when config has outputFormat 'text'", async () => {
       const config: DeepPartial<AppConfig> = {
         server: { port: 0, host: "127.0.0.1" },
