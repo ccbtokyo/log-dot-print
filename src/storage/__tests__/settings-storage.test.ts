@@ -1,8 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { unlink } from "fs/promises";
 import { SqliteStorage } from "../sqlite-storage.js";
 
-const TEST_DB_PATH = "/tmp/test-settings-storage.db";
+const TEST_DB_PATH = join(tmpdir(), "test-settings-storage.db");
 
 describe("SqliteStorage Settings", () => {
   let storage: SqliteStorage;

@@ -1,11 +1,13 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { unlink } from "fs/promises";
 import { TypedEventEmitter } from "../../core/index.js";
 import type { LogEntry, PrintJob } from "../../core/index.js";
 import { SqliteStorage } from "../sqlite-storage.js";
 import { QueuePersistenceHandler } from "../queue-persistence.js";
 
-const TEST_DB_PATH = "/tmp/test-queue-persistence.db";
+const TEST_DB_PATH = join(tmpdir(), "test-queue-persistence.db");
 
 function createTestLogEntry(overrides?: Partial<LogEntry>): LogEntry {
   return {

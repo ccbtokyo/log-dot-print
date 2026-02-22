@@ -5,8 +5,9 @@ import {
   mockGetPrinterByName,
   resetPrinterMocks,
 } from "./printers-mock.js";
+import { mockPrint, resetPdfToPrinterMocks } from "./pdf-to-printer-mock.js";
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stat, rm, mkdir, readFile } from "node:fs/promises";
@@ -14,6 +15,15 @@ import { stat, rm, mkdir, readFile } from "node:fs/promises";
 import { NativePrinter } from "../native.js";
 import { TypedEventEmitter } from "../../core/events.js";
 import type { PrintJob, SystemConfig } from "../../core/types.js";
+
+/**
+ * Override NativePrinter's private isWindowsPlatform() for testing.
+ * This avoids mock.module leaking across test files.
+ */
+function enableWindowsPlatform(printer: NativePrinter): void {
+  // biome-ignore lint/suspicious/noExplicitAny: test-only override of private method
+  (printer as any).isWindowsPlatform = () => true;
+}
 
 // Test fixtures
 function createTestConfig(): SystemConfig {
@@ -56,6 +66,7 @@ describe("NativePrinter", () => {
     eventBus = new TypedEventEmitter();
     config = createTestConfig();
     resetPrinterMocks();
+    resetPdfToPrinterMocks();
   });
 
   describe("constructor", () => {
@@ -407,6 +418,251 @@ describe("NativePrinter", () => {
     });
   });
 
+  describe("Windows PDF fallback", () => {
+    const customPersistDir = join(tmpdir(), "log-dot-print-test-win-pdf");
+
+    function createPdfPrintJob(id: string = "pdf-test"): PrintJob {
+      return {
+        id,
+        logEntry: {
+          id,
+          timestamp: new Date().toISOString(),
+          level: "info",
+          source: "test",
+          message: "Test PDF message",
+          printed: false,
+        },
+        formattedContent: "",
+        createdAt: new Date(),
+        status: "pending",
+        retryCount: 0,
+        contentType: "pdf",
+        binaryContent: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]),
+      };
+    }
+
+    beforeEach(async () => {
+      await mkdir(customPersistDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+      await rm(customPersistDir, { recursive: true, force: true });
+    });
+
+    test("uses pdf-to-printer when Windows and PDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      expect(mockPrint).toHaveBeenCalledTimes(1);
+      expect(mockNamedPrinter.printFile).not.toHaveBeenCalled();
+
+      await printer.shutdown();
+    });
+
+    test("passes printer name to pdf-to-printer", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.printer).toBe("EPSON_PX1VL");
+      expect(printOptions.monochrome).toBe(true);
+      expect(printOptions.orientation).toBe("portrait");
+      expect(printOptions.silent).toBe(true);
+
+      await printer.shutdown();
+    });
+
+    test("maps landscape option to orientation", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        landscape: true,
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.orientation).toBe("landscape");
+
+      await printer.shutdown();
+    });
+
+    test("maps duplex option to side", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        duplex: true,
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.side).toBe("duplex");
+
+      await printer.shutdown();
+    });
+
+    test("maps fitToPage option to scale", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        fitToPage: true,
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.scale).toBe("fit");
+
+      await printer.shutdown();
+    });
+
+    test("uses noscale when fitToPage is false", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        fitToPage: false,
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.scale).toBe("noscale");
+
+      await printer.shutdown();
+    });
+
+    test("uses @printers/printers for Windows text content", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      expect(mockNamedPrinter.printFile).toHaveBeenCalledTimes(1);
+      expect(mockPrint).not.toHaveBeenCalled();
+
+      await printer.shutdown();
+    });
+
+    test("uses @printers/printers for Windows image content", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("image-test");
+      job.contentType = "image";
+      job.binaryContent = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+      await printer.print(job);
+
+      expect(mockNamedPrinter.printFile).toHaveBeenCalledTimes(1);
+      expect(mockPrint).not.toHaveBeenCalled();
+
+      await printer.shutdown();
+    });
+
+    test("uses @printers/printers for non-Windows PDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      // Do NOT call enableWindowsPlatform — default is non-Windows
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      expect(mockNamedPrinter.printFile).toHaveBeenCalledTimes(1);
+      expect(mockPrint).not.toHaveBeenCalled();
+
+      await printer.shutdown();
+    });
+
+    test("uses storage printer name for Windows PDF", async () => {
+      const storagePrinter = {
+        name: "Storage_Printer",
+        state: "idle",
+        printFile: mock(() => Promise.resolve(99999)),
+      };
+      mockGetPrinterByName.mockImplementation((name: string) => {
+        if (name === "Storage_Printer") return storagePrinter;
+        if (name === "EPSON_PX1VL") return mockNamedPrinter;
+        return null;
+      });
+
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+        getPrinterNameFromStorage: async () => "Storage_Printer",
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.printer).toBe("Storage_Printer");
+
+      await printer.shutdown();
+    });
+
+    test("persists file for Windows PDF print", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob("persist-pdf-test");
+      await printer.print(job);
+
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toContain(customPersistDir);
+      expect(job.filePath).toMatch(/\.pdf$/);
+
+      const content = await readFile(job.filePath!);
+      expect(content[0]).toBe(0x25);
+      expect(content[1]).toBe(0x50);
+
+      await printer.shutdown();
+    });
+  });
+
   describe("shutdown", () => {
     test("disconnects properly", async () => {
       const printer = new NativePrinter({ printerName: "EPSON_PX1VL" });
@@ -465,7 +721,7 @@ describe("NativePrinter", () => {
 
       // Verify file path is set and uses default directory
       expect(job.filePath).toBeDefined();
-      expect(job.filePath).toContain("data/prints");
+      expect(job.filePath).toMatch(/data[/\\]prints/);
       expect(job.filePath).toContain("default-persist-test");
 
       // Verify file exists and has correct content

@@ -60,6 +60,45 @@ function getFileExtension(contentType?: PrintContentType): string {
 }
 
 /**
+ * Print a PDF file using pdf-to-printer (SumatraPDF) on Windows.
+ * Only the `print()` function is used — `getPrinters()`/`getDefaultPrinter()`
+ * are NOT called to avoid PowerShell parser bugs in Japanese environments.
+ */
+async function printPdfWithSumatraPDF(
+  filePath: string,
+  printerName: string,
+  options: NativePrinterInternalOptions,
+  resolvedPaperSize?: string,
+): Promise<void> {
+  let ptpPrint: (pdf: string, opts?: import("pdf-to-printer").PrintOptions) => Promise<void>;
+  try {
+    const mod = await import("pdf-to-printer");
+    ptpPrint = mod.print;
+  } catch {
+    throw new Error(
+      "pdf-to-printer is required for Windows PDF printing. Install with: bun add pdf-to-printer",
+    );
+  }
+
+  const printOptions: import("pdf-to-printer").PrintOptions = {
+    printer: printerName,
+    silent: true,
+    copies: options.copies,
+    orientation: options.landscape ? "landscape" : "portrait",
+    monochrome: !options.color,
+    scale: options.fitToPage ? "fit" : "noscale",
+  };
+  if (options.duplex) {
+    printOptions.side = "duplex";
+  }
+  if (resolvedPaperSize) {
+    printOptions.paperSize = resolvedPaperSize;
+  }
+
+  await ptpPrint(filePath, printOptions);
+}
+
+/**
  * Options for NativePrinter
  */
 export interface NativePrinterOptions {
@@ -115,6 +154,10 @@ export class NativePrinter extends BasePrinter {
   private printerAvailable = false;
   private getPrinterNameFromStorage?: () => Promise<string | null>;
   private getPaperSizeFromStorage?: () => Promise<string | null>;
+
+  private isWindowsPlatform(): boolean {
+    return process.platform === "win32";
+  }
 
   constructor(options: NativePrinterOptions = {}) {
     super();
@@ -315,12 +358,25 @@ export class NativePrinter extends BasePrinter {
       }
 
       // Print the file
-      // Explicitly wait for completion before removing the temp file.
-      await targetPrinter.printFile(tempFile, {
-        simple: printOptions,
-        cups: cupsOptions,
-        waitForCompletion: true,
-      });
+      if (this.isWindowsPlatform() && job.contentType === "pdf") {
+        // Windows + PDF: delegate to SumatraPDF via pdf-to-printer.
+        // Avoids the RAW datatype issue where PDF binary is sent directly
+        // to the printer, causing metadata like %PDF-1.4 to be printed as text.
+        await printPdfWithSumatraPDF(
+          tempFile,
+          targetPrinter.name,
+          this.options,
+          printOptions.paperSize,
+        );
+      } else {
+        // All other cases: use @printers/printers native printing.
+        // Explicitly wait for completion before removing the temp file.
+        await targetPrinter.printFile(tempFile, {
+          simple: printOptions,
+          cups: cupsOptions,
+          waitForCompletion: true,
+        });
+      }
 
       // Persist print file (always enabled with default directory)
       await mkdir(this.options.persistDir, { recursive: true });

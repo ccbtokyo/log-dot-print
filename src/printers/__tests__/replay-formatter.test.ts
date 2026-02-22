@@ -1,4 +1,6 @@
 import { describe, test, expect, beforeEach } from "bun:test";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { ReplayFormatter } from "../replay-formatter.js";
 import type {
   LogEntry,
@@ -823,7 +825,8 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("file:///usr/share/fonts/custom.ttf");
+      const expectedUrl = pathToFileURL(resolve("/usr/share/fonts/custom.ttf")).href;
+      expect(html).toContain(expectedUrl);
     });
 
     test("handles font family stacks with @font-face correctly", async () => {

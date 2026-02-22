@@ -1,9 +1,11 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { unlink } from "fs/promises";
 import { SqliteStorage } from "../sqlite-storage.js";
 import type { LogEntry, PrintJob } from "../../core/index.js";
 
-const TEST_DB_PATH = "/tmp/test-sqlite-storage.db";
+const TEST_DB_PATH = join(tmpdir(), "test-sqlite-storage.db");
 
 function createTestLogEntry(overrides?: Partial<LogEntry>): LogEntry {
   return {
@@ -344,7 +346,7 @@ describe("SqliteStorage", () => {
 
   describe("error handling", () => {
     test("should throw when not initialized", async () => {
-      const uninitializedStorage = new SqliteStorage("/tmp/uninit.db");
+      const uninitializedStorage = new SqliteStorage(join(tmpdir(), "uninit.db"));
       await expect(uninitializedStorage.save(createTestLogEntry())).rejects.toThrow(
         "SqliteStorage not initialized",
       );

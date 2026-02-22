@@ -86,7 +86,7 @@ export class PdfToPrinterPrinter extends BasePrinter {
     const scale =
       options.scale === "noscale" || options.scale === "shrink" || options.scale === "fit"
         ? options.scale
-        : "noscale";
+        : "fit";
     const monochrome = typeof options.monochrome === "boolean" ? options.monochrome : true;
     const silent = typeof options.silent === "boolean" ? options.silent : true;
     const paperSize =

@@ -222,6 +222,23 @@ describe("PdfToPrinterPrinter", () => {
   });
 
   describe("print options", () => {
+    test("uses fit scale option by default", async () => {
+      const printer = new PdfToPrinterPrinter({
+        printerName: "EPSON VP-F4400",
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("default-scale-test");
+      job.contentType = "pdf";
+      job.binaryContent = Buffer.from("%PDF-1.4");
+      await printer.print(job);
+
+      const [, options] = mockPrint.mock.calls[0];
+      expect(options.scale).toBe("fit");
+
+      await printer.shutdown();
+    });
+
     test("passes monochrome option", async () => {
       const printer = new PdfToPrinterPrinter({
         printerName: "EPSON VP-F4400",
