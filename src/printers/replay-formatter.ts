@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: Required<
 } = {
   outputFormat: "replay",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  fontSize: 11,
+  fontSize: 16,
   pageWidth: 80,
   sideMargin: 10,
   npcColor: "#333",
@@ -92,8 +92,8 @@ export class ReplayFormatter implements LogFormatterPlugin {
       if (!this.isRecord(parsed)) {
         return this.renderError("Invalid format: expected a gameplay JSON object");
       }
-      if (!Array.isArray(parsed.gameplay)) {
-        return this.renderError("Invalid format: missing or invalid 'gameplay' array");
+      if (!Array.isArray(parsed.gameplay) && !this.isRecord(parsed.gameplay)) {
+        return this.renderError("Invalid format: missing or invalid 'gameplay' field");
       }
       payload = parsed as unknown as GameplayPayload;
     } catch (error) {
@@ -137,7 +137,14 @@ export class ReplayFormatter implements LogFormatterPlugin {
     }`
       : "";
 
-    const pageSizeRule = pdfPaperSize ? `size: ${paperNameToCssPageSize(pdfPaperSize)};` : "";
+    const cssPageSize = pdfPaperSize ? paperNameToCssPageSize(pdfPaperSize) : "";
+    // Only append portrait keyword for standard page-size names (e.g. "A4").
+    // Explicit dimensions (e.g. "11in 15.5in") already encode orientation via width/height.
+    const pageSizeRule = cssPageSize
+      ? cssPageSize.includes(" ")
+        ? `size: ${cssPageSize};`
+        : `size: ${cssPageSize} portrait;`
+      : "";
 
     const css = `
     @page {
@@ -208,7 +215,11 @@ export class ReplayFormatter implements LogFormatterPlugin {
 
     const footerHtml = respawn ? this.renderFooterHtml(respawn) : "";
 
-    const sectionsHtml = payload.gameplay
+    const conversations: GameplayConversation[] = Array.isArray(payload.gameplay)
+      ? payload.gameplay
+      : [payload.gameplay];
+
+    const sectionsHtml = conversations
       .map((conv: GameplayConversation, index: number) => {
         const divider = index > 0 ? `\n    <hr class="section-divider">` : "";
         const npcNickname = conv?.npc?.nickname ?? "NPC";

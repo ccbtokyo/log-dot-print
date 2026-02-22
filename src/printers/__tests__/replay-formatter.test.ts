@@ -579,7 +579,7 @@ describe("ReplayFormatter", () => {
       expect(html).toContain('class="error"');
     });
 
-    test("returns error HTML when gameplay is not an array", async () => {
+    test("returns error HTML when gameplay is not an array or object", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify({ gameplay: "not-array", respawn: {} }));
@@ -658,6 +658,32 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("sho");
     });
 
+    test("accepts gameplay as a single object and wraps it in an array", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const singleConversation = {
+        npc: { replay_id: "r1", nickname: "sho" },
+        dialogue: [
+          { role: "player", text: "こんにちは" },
+          { role: "npc", text: "やあ！" },
+        ],
+      };
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: singleConversation,
+          respawn: { nickname: "Toshi", age: "30s", gender: "male" },
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).not.toContain('class="error"');
+      expect(html).toContain("sho");
+      expect(html).toContain("こんにちは");
+      expect(html).toContain("やあ！");
+      expect(html).toContain("Toshi");
+    });
+
     test("handles empty gameplay array gracefully", async () => {
       await formatter.initialize(eventBus, createConfig());
 
@@ -705,7 +731,7 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("size: A4;");
+      expect(html).toContain("size: A4 portrait;");
     });
 
     test("uses pdfPaperSize as CSS @page size when set to Custom inch format", async () => {
@@ -714,6 +740,7 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
+      // Custom dimensions should NOT have portrait keyword (it's invalid CSS)
       expect(html).toContain("size: 11in 15.5in;");
     });
 
@@ -725,6 +752,26 @@ describe("ReplayFormatter", () => {
 
       // @page block should not contain a size declaration
       expect(html).not.toMatch(/@page\s*\{[^}]*\bsize:/);
+    });
+
+    test("includes portrait keyword in @page size rule for standard names", async () => {
+      await formatter.initialize(eventBus, createConfig({ pdfPaperSize: "A4" }));
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("size: A4 portrait;");
+    });
+
+    test("does not include portrait keyword for custom dimensions", async () => {
+      await formatter.initialize(eventBus, createConfig({ pdfPaperSize: "Custom.11x15.5in" }));
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // Explicit dimensions already encode orientation via width/height ordering
+      expect(html).toContain("size: 11in 15.5in;");
+      expect(html).not.toContain("portrait");
     });
 
     test("applies custom font path with @font-face", async () => {
@@ -820,7 +867,7 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("11pt");
+      expect(html).toContain("16pt");
       // pageWidth is no longer used in @page size (only pdfPaperSize drives that)
       // but sideMargin default (10mm) should still appear in margin/padding
       expect(html).toContain("10mm");

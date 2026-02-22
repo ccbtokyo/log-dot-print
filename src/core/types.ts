@@ -192,7 +192,7 @@ export interface GameplayRespawnInfo {
 
 /** gameplay ペイロード全体 */
 export interface GameplayPayload {
-  gameplay: GameplayConversation[];
+  gameplay: GameplayConversation[] | GameplayConversation;
   respawn: GameplayRespawnInfo;
 }
 
@@ -250,6 +250,8 @@ export interface ImageConversionConfig {
   cropToContent?: boolean;
   /** Maximum PDF height in inches when cropToContent is enabled (default: paper height from pdfPaperSize) */
   pdfMaxHeightIn?: number;
+  /** PDF をラスタライズして PNG 画像として印刷する（ドットインパクトプリンター用）。format が "pdf" の場合のみ有効。 */
+  rasterize?: boolean;
 }
 
 /**
