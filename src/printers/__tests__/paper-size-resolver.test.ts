@@ -4,6 +4,7 @@ import {
   normalizePaperName,
   paperNameToCssPageSize,
   parsePaperDimensions,
+  paperSizeForSumatraPDF,
 } from "../paper-size-resolver.js";
 
 describe("resolvePaperSize", () => {
@@ -169,5 +170,36 @@ describe("parsePaperDimensions", () => {
   test("returns null for invalid format", () => {
     expect(parsePaperDimensions("")).toBeNull();
     expect(parsePaperDimensions("FooBar")).toBeNull();
+  });
+});
+
+describe("paperSizeForSumatraPDF", () => {
+  test("passes through standard paper sizes", () => {
+    expect(paperSizeForSumatraPDF("A4")).toBe("A4");
+    expect(paperSizeForSumatraPDF("A3")).toBe("A3");
+    expect(paperSizeForSumatraPDF("Letter")).toBe("Letter");
+    expect(paperSizeForSumatraPDF("Legal")).toBe("Legal");
+    expect(paperSizeForSumatraPDF("Tabloid")).toBe("Tabloid");
+  });
+
+  test("returns null for Custom inch dimensions", () => {
+    expect(paperSizeForSumatraPDF("Custom.11x15.5in")).toBeNull();
+    expect(paperSizeForSumatraPDF("Custom.8.5x11in")).toBeNull();
+  });
+
+  test("returns null for Custom mm dimensions", () => {
+    expect(paperSizeForSumatraPDF("Custom.210x297mm")).toBeNull();
+  });
+
+  test("returns null for CUPS Custom placeholder", () => {
+    expect(paperSizeForSumatraPDF("Custom.WIDTHxHEIGHT")).toBeNull();
+  });
+
+  test("returns null for empty string", () => {
+    expect(paperSizeForSumatraPDF("")).toBeNull();
+  });
+
+  test("trims whitespace", () => {
+    expect(paperSizeForSumatraPDF("  A4  ")).toBe("A4");
   });
 });

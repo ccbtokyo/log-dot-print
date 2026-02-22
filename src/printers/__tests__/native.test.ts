@@ -667,25 +667,7 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
-    test("does not pass custom paper size to SumatraPDF", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        paperSize: "Custom.11x15.5in",
-        persistDir: customPersistDir,
-      });
-      enableWindowsPlatform(printer);
-      await printer.initialize(eventBus, config);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperSize).toBeUndefined();
-
-      await printer.shutdown();
-    });
-
-    test("passes standard paper size to SumatraPDF", async () => {
+    test("never passes paperSize to SumatraPDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         paperSize: "A4",
@@ -697,8 +679,9 @@ describe("NativePrinter", () => {
       const job = createPdfPrintJob();
       await printer.print(job);
 
+      // paperSize must not be passed — let the printer driver DEVMODE decide
       const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperSize).toBe("A4");
+      expect(printOptions.paperSize).toBeUndefined();
 
       await printer.shutdown();
     });

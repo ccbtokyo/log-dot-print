@@ -120,6 +120,21 @@ export function parsePaperDimensions(name: string): PaperDimensions | null {
 }
 
 /**
+ * Convert a paper size name for SumatraPDF's `-print-settings paper=` option.
+ * SumatraPDF only accepts standard paper names (A4, Letter, etc.).
+ * Custom dimensions (Custom.WxH{in|mm}) are NOT supported and return null,
+ * letting the printer driver's default paper setting take effect.
+ */
+export function paperSizeForSumatraPDF(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("Custom.")) {
+    return null;
+  }
+  return trimmed;
+}
+
+/**
  * Convert a paper size name to a CSS `@page { size: ... }` value.
  * - Standard names → returned as-is (browsers/weasyprint understand them)
  * - Custom.WxHin → "Win Hin" (e.g. "11in 15.5in")
