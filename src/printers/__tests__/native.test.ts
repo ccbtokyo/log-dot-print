@@ -667,10 +667,10 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
-    test("never passes paperSize to SumatraPDF", async () => {
+    test("passes configured paper size directly to SumatraPDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
-        paperSize: "A4",
+        paperSize: "15x11",
         persistDir: customPersistDir,
       });
       enableWindowsPlatform(printer);
@@ -679,7 +679,61 @@ describe("NativePrinter", () => {
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      // paperSize must not be passed — let the printer driver DEVMODE decide
+      // Raw paper name is passed through without normalization
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperSize).toBe("15x11");
+
+      await printer.shutdown();
+    });
+
+    test("passes Windows fanfold paper name to SumatraPDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "Fanfold 15 x 11 1/2 inch",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperSize).toBe("Fanfold 15 x 11 1/2 inch");
+
+      await printer.shutdown();
+    });
+
+    test("does not set paperSize on SumatraPDF when not configured", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperSize).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
+    test("skips Custom.* CUPS format for SumatraPDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "Custom.11x15.5in",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      // Custom.* is CUPS syntax — SumatraPDF cannot parse it
       const [, printOptions] = mockPrint.mock.calls[0];
       expect(printOptions.paperSize).toBeUndefined();
 

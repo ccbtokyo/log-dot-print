@@ -6,7 +6,8 @@
   "printer": {
     "type": "native",
     "options": {
-      "printerName": "EPSON VP-F4400N"
+      "printerName": "EPSON VP-F4400N",
+      "paperSize": "15x11"
     }
   },
   "queue": {

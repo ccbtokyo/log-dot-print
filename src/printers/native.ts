@@ -68,6 +68,7 @@ async function printPdfWithSumatraPDF(
   filePath: string,
   printerName: string,
   options: NativePrinterInternalOptions,
+  rawPaperSize?: string,
 ): Promise<void> {
   let ptpPrint: (pdf: string, opts?: import("pdf-to-printer").PrintOptions) => Promise<void>;
   try {
@@ -90,7 +91,14 @@ async function printPdfWithSumatraPDF(
   if (options.duplex) {
     printOptions.side = "duplex";
   }
-  // paperSize / paperKind は渡さない — ドライバーの DEVMODE を維持
+  if (rawPaperSize && !rawPaperSize.startsWith("Custom.")) {
+    // Pass raw paper name directly — Windows driver form names
+    // (e.g. "15x11", "Fanfold 15 x 11 1/2 inch") are not CUPS-normalizable,
+    // so we bypass normalizePaperName() and hand the value through as-is.
+    // Custom.* format (CUPS dimension syntax) is skipped — SumatraPDF cannot
+    // parse it, so we let the printer driver DEVMODE decide instead.
+    printOptions.paperSize = rawPaperSize;
+  }
 
   await ptpPrint(filePath, printOptions);
 }
@@ -359,7 +367,7 @@ export class NativePrinter extends BasePrinter {
         // Windows + PDF: delegate to SumatraPDF via pdf-to-printer.
         // Avoids the RAW datatype issue where PDF binary is sent directly
         // to the printer, causing metadata like %PDF-1.4 to be printed as text.
-        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, this.options);
+        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, this.options, resolved);
       } else {
         // All other cases: use @printers/printers native printing.
         // Explicitly wait for completion before removing the temp file.
