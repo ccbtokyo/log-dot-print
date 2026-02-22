@@ -179,12 +179,6 @@ export interface GameplayDialogueEntry {
   text: string;
 }
 
-/** gameplay 内の NPC 会話ブロック */
-export interface GameplayConversation {
-  npc: GameplayNpcInfo;
-  dialogue: GameplayDialogueEntry[];
-}
-
 /** respawn（プレイヤー）情報 */
 export interface GameplayRespawnInfo {
   nickname: string;
@@ -197,10 +191,16 @@ export interface GameplayRespawnInfo {
   convai_backstory?: string;
 }
 
-/** gameplay ペイロード全体 */
+/**
+ * gameplay ペイロード — 1 回の送信単位
+ * - 会話: { npc, dialogue }
+ * - 会話 + respawn: { npc, dialogue, respawn }
+ * - respawn のみ: { respawn }
+ */
 export interface GameplayPayload {
-  gameplay: GameplayConversation[] | GameplayConversation;
-  respawn: GameplayRespawnInfo;
+  npc?: GameplayNpcInfo;
+  dialogue?: GameplayDialogueEntry[];
+  respawn?: GameplayRespawnInfo;
 }
 
 export interface ReplayFormatConfig {
@@ -321,9 +321,18 @@ export interface PrinterSettings {
   isDefault: boolean;
 }
 
+/**
+ * Paper size with optional Windows DEVMODE dmPaperSize (RawKind)
+ */
+export interface PaperSizeInfo {
+  name: string;
+  rawKind: number | null;
+}
+
 /** Response type for GET /api/papers */
 export interface PaperListResponse {
   paperSizes: string[];
+  paperSizeDetails: PaperSizeInfo[];
   source: "dynamic" | "fallback";
   printerName: string | null;
 }
@@ -331,5 +340,6 @@ export interface PaperListResponse {
 /** Response type for GET /api/settings/paper */
 export interface PaperSettings {
   currentPaperSize: string | null;
+  currentPaperKind: number | null;
   isDefault: boolean;
 }

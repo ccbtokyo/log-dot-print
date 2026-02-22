@@ -21,14 +21,10 @@ describe("ReplayFormatter", () => {
   let eventBus: TypedEventEmitter;
 
   const createPayload = (overrides?: Partial<GameplayPayload>): GameplayPayload => ({
-    gameplay: [
-      {
-        npc: { replay_id: "r1", nickname: "sho" },
-        dialogue: [
-          { role: "player", text: "こんにちは" },
-          { role: "npc", text: "こんにちは！元気ですか？" },
-        ],
-      },
+    npc: { replay_id: "r1", nickname: "sho" },
+    dialogue: [
+      { role: "player", text: "こんにちは" },
+      { role: "npc", text: "こんにちは！元気ですか？" },
     ],
     respawn: {
       nickname: "Toshi",
@@ -220,12 +216,8 @@ describe("ReplayFormatter", () => {
 
       const entry = createLogEntry(
         JSON.stringify({
-          gameplay: [
-            {
-              npc: { replay_id: "r1", nickname: "sho" },
-              dialogue: [{ role: "npc", text: "Hello" }],
-            },
-          ],
+          npc: { replay_id: "r1", nickname: "sho" },
+          dialogue: [{ role: "npc", text: "Hello" }],
         }),
       );
       const html = formatter.format(entry);
@@ -315,29 +307,6 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("npc-section-header");
       expect(html).toContain("sho");
     });
-
-    test("renders section dividers between multiple NPC conversations", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const payload = createPayload({
-        gameplay: [
-          {
-            npc: { replay_id: "r1", nickname: "sho" },
-            dialogue: [{ role: "npc", text: "Hello" }],
-          },
-          {
-            npc: { replay_id: "r2", nickname: "yuki" },
-            dialogue: [{ role: "npc", text: "Hi" }],
-          },
-        ],
-      });
-      const entry = createLogEntry(JSON.stringify(payload));
-      const html = formatter.format(entry);
-
-      expect(html).toContain("sho");
-      expect(html).toContain("yuki");
-      expect(html).toContain("section-divider");
-    });
   });
 
   describe("dialogue rendering", () => {
@@ -391,15 +360,10 @@ describe("ReplayFormatter", () => {
       await formatter.initialize(eventBus, createConfig());
 
       const payload = createPayload({
-        gameplay: [
-          {
-            npc: { replay_id: "r1", nickname: "sho" },
-            dialogue: [
-              { role: "player", text: "Message 1" },
-              { role: "npc", text: "Message 2" },
-              { role: "player", text: "Message 3" },
-            ],
-          },
+        dialogue: [
+          { role: "player", text: "Message 1" },
+          { role: "npc", text: "Message 2" },
+          { role: "player", text: "Message 3" },
         ],
       });
       const entry = createLogEntry(JSON.stringify(payload));
@@ -430,15 +394,11 @@ describe("ReplayFormatter", () => {
       await formatter.initialize(eventBus, createConfig());
 
       const payload = createPayload({
-        gameplay: [
-          {
-            npc: {
-              replay_id: "r1",
-              nickname: "<script>alert('xss')</script>",
-            },
-            dialogue: [{ role: "npc", text: "Test" }],
-          },
-        ],
+        npc: {
+          replay_id: "r1",
+          nickname: "<script>alert('xss')</script>",
+        },
+        dialogue: [{ role: "npc", text: "Test" }],
       });
       const entry = createLogEntry(JSON.stringify(payload));
       const html = formatter.format(entry);
@@ -491,15 +451,11 @@ describe("ReplayFormatter", () => {
       await formatter.initialize(eventBus, createConfig());
 
       const payload = createPayload({
-        gameplay: [
+        npc: { replay_id: "r1", nickname: "NPC1" },
+        dialogue: [
           {
-            npc: { replay_id: "r1", nickname: "NPC1" },
-            dialogue: [
-              {
-                role: "npc",
-                text: '<img src="x" onerror="alert(1)">',
-              },
-            ],
+            role: "npc",
+            text: '<img src="x" onerror="alert(1)">',
           },
         ],
       });
@@ -572,7 +528,7 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("JSON");
     });
 
-    test("returns error HTML when gameplay key is missing", async () => {
+    test("returns error HTML when no recognized fields exist", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify({ key: "value" }));
@@ -581,58 +537,11 @@ describe("ReplayFormatter", () => {
       expect(html).toContain('class="error"');
     });
 
-    test("returns error HTML when gameplay is not an array or object", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const entry = createLogEntry(JSON.stringify({ gameplay: "not-array", respawn: {} }));
-      const html = formatter.format(entry);
-
-      expect(html).toContain('class="error"');
-    });
-
     test("handles empty dialogue array gracefully", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const payload = createPayload({
-        gameplay: [
-          {
-            npc: { replay_id: "r1", nickname: "sho" },
-            dialogue: [],
-          },
-        ],
-      });
+      const payload = createPayload({ dialogue: [] });
       const entry = createLogEntry(JSON.stringify(payload));
-      const html = formatter.format(entry);
-
-      expect(html).toContain("<!DOCTYPE html>");
-      expect(html).not.toContain('class="error"');
-      expect(html).toContain("sho");
-    });
-
-    test("handles malformed gameplay element without npc field", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const entry = createLogEntry(
-        JSON.stringify({
-          gameplay: [{}],
-          respawn: { nickname: "A", age: "20s", gender: "female" },
-        }),
-      );
-      const html = formatter.format(entry);
-
-      expect(html).toContain("<!DOCTYPE html>");
-      expect(html).not.toContain('class="error"');
-    });
-
-    test("handles malformed gameplay element with non-array dialogue", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const entry = createLogEntry(
-        JSON.stringify({
-          gameplay: [{ npc: { replay_id: "r1", nickname: "sho" }, dialogue: "not-array" }],
-          respawn: { nickname: "A", age: "20s", gender: "female" },
-        }),
-      );
       const html = formatter.format(entry);
 
       expect(html).toContain("<!DOCTYPE html>");
@@ -645,12 +554,8 @@ describe("ReplayFormatter", () => {
 
       const entry = createLogEntry(
         JSON.stringify({
-          gameplay: [
-            {
-              npc: { replay_id: "r1", nickname: "sho" },
-              dialogue: [{ role: "npc", text: "Hello" }],
-            },
-          ],
+          npc: { replay_id: "r1", nickname: "sho" },
+          dialogue: [{ role: "npc", text: "Hello" }],
         }),
       );
       const html = formatter.format(entry);
@@ -660,19 +565,11 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("sho");
     });
 
-    test("accepts gameplay as a single object and wraps it in an array", async () => {
+    test("renders respawn-only payload with footer only", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const singleConversation = {
-        npc: { replay_id: "r1", nickname: "sho" },
-        dialogue: [
-          { role: "player", text: "こんにちは" },
-          { role: "npc", text: "やあ！" },
-        ],
-      };
       const entry = createLogEntry(
         JSON.stringify({
-          gameplay: singleConversation,
           respawn: { nickname: "Toshi", age: "30s", gender: "male" },
         }),
       );
@@ -680,21 +577,9 @@ describe("ReplayFormatter", () => {
 
       expect(html).toContain("<!DOCTYPE html>");
       expect(html).not.toContain('class="error"');
-      expect(html).toContain("sho");
-      expect(html).toContain("こんにちは");
-      expect(html).toContain("やあ！");
+      expect(html).toContain('class="player-footer"');
       expect(html).toContain("Toshi");
-    });
-
-    test("handles empty gameplay array gracefully", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const payload = createPayload({ gameplay: [] });
-      const entry = createLogEntry(JSON.stringify(payload));
-      const html = formatter.format(entry);
-
-      expect(html).toContain("<!DOCTYPE html>");
-      expect(html).not.toContain('class="error"');
+      expect(html).not.toContain('<div class="npc-section-header">');
     });
   });
 
@@ -943,17 +828,13 @@ describe("ReplayFormatter", () => {
       await formatter.initialize(eventBus, createConfig());
 
       const payload: GameplayPayload = {
-        gameplay: [
+        npc: { replay_id: "r1", nickname: "ガイドNPC" },
+        dialogue: [
+          { role: "npc", text: "ようこそ、冒険者よ。" },
+          { role: "player", text: "こんにちは！" },
           {
-            npc: { replay_id: "r1", nickname: "ガイドNPC" },
-            dialogue: [
-              { role: "npc", text: "ようこそ、冒険者よ。" },
-              { role: "player", text: "こんにちは！" },
-              {
-                role: "npc",
-                text: "何かお手伝いできることはありますか？",
-              },
-            ],
+            role: "npc",
+            text: "何かお手伝いできることはありますか？",
           },
         ],
         respawn: {
