@@ -19,6 +19,7 @@ import {
   tryRegisterSerialPrinter,
   tryRegisterEscposPrinter,
   tryRegisterNativePrinter,
+  tryRegisterPdfToPrinter,
   createImageConverter,
   createPdfConverter,
 } from "../printers/index.js";
@@ -162,6 +163,7 @@ export class LogPrintApp {
       tryRegisterSerialPrinter().catch(() => {}),
       tryRegisterEscposPrinter().catch(() => {}),
       tryRegisterNativePrinter().catch(() => {}),
+      tryRegisterPdfToPrinter().catch(() => {}),
     ]);
 
     // Initialize storage if enabled

@@ -11,8 +11,8 @@ export * from "./paper-size-resolver.js";
 export * from "./converters/index.js";
 
 // Printer implementations (side effects: register with registry)
-// Note: escpos, serial, and native are NOT auto-registered due to native module dependencies
-// Use tryRegisterSerialPrinter(), tryRegisterEscposPrinter(), and tryRegisterNativePrinter() for conditional registration
+// Note: escpos, serial, native, and pdf-to-printer are NOT auto-registered due to native module dependencies
+// Use tryRegisterSerialPrinter(), tryRegisterEscposPrinter(), tryRegisterNativePrinter(), and tryRegisterPdfToPrinter() for conditional registration
 import "./mock.js";
 import "./cups.js";
 
@@ -57,6 +57,21 @@ export async function tryRegisterNativePrinter(): Promise<boolean> {
     return tryRegister();
   } catch {
     console.log("[Printers] Failed to load native printer module");
+    return false;
+  }
+}
+
+/**
+ * Try to register the pdf-to-printer printer plugin (requires pdf-to-printer, Windows only)
+ * Safe to call in environments where pdf-to-printer may not be available
+ * @returns true if registered successfully, false if module not available
+ */
+export async function tryRegisterPdfToPrinter(): Promise<boolean> {
+  try {
+    const { tryRegister } = await import("./pdf-to-printer.js");
+    return tryRegister();
+  } catch {
+    console.log("[Printers] Failed to load pdf-to-printer module");
     return false;
   }
 }

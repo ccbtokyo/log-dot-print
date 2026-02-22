@@ -116,7 +116,7 @@ Options:
   -c, --config <path>    Path to config file (JSON)
   -p, --port <port>      Server port (default: 3000)
   -h, --host <host>      Server host (default: 0.0.0.0)
-  --printer <type>       Printer type (mock, native, cups, escpos, serial)
+  --printer <type>       Printer type (mock, native, cups, escpos, serial, pdf-to-printer)
   --help                 Show this help message
 
 Environment Variables:

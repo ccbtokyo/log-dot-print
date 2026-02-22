@@ -121,7 +121,14 @@ export interface PrinterStatus {
   info?: string;
 }
 
-export type PrinterType = "cups" | "escpos" | "serial" | "mock" | "native" | "custom";
+export type PrinterType =
+  | "cups"
+  | "escpos"
+  | "serial"
+  | "mock"
+  | "native"
+  | "pdf-to-printer"
+  | "custom";
 
 /**
  * Output format for log formatting
