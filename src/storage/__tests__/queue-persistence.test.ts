@@ -1,13 +1,11 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { unlink } from "fs/promises";
+import { mkdtemp, rm } from "fs/promises";
 import { TypedEventEmitter } from "../../core/index.js";
 import type { LogEntry, PrintJob } from "../../core/index.js";
 import { SqliteStorage } from "../sqlite-storage.js";
 import { QueuePersistenceHandler } from "../queue-persistence.js";
-
-const TEST_DB_PATH = join(tmpdir(), "test-queue-persistence.db");
 
 function createTestLogEntry(overrides?: Partial<LogEntry>): LogEntry {
   return {
@@ -37,10 +35,11 @@ describe("QueuePersistenceHandler", () => {
   let storage: SqliteStorage;
   let eventBus: TypedEventEmitter;
   let handler: QueuePersistenceHandler;
+  let testDir: string;
 
   beforeEach(async () => {
-    await cleanupTestDb();
-    storage = new SqliteStorage(TEST_DB_PATH);
+    testDir = await mkdtemp(join(tmpdir(), "test-queue-persistence-"));
+    storage = new SqliteStorage(join(testDir, "test.db"));
     await storage.initialize();
     eventBus = new TypedEventEmitter();
     handler = new QueuePersistenceHandler(storage, eventBus);
@@ -49,26 +48,8 @@ describe("QueuePersistenceHandler", () => {
   afterEach(async () => {
     handler.shutdown();
     await storage.shutdown();
-    await cleanupTestDb();
+    await rm(testDir, { recursive: true, force: true });
   });
-
-  async function cleanupTestDb() {
-    try {
-      await unlink(TEST_DB_PATH);
-    } catch {
-      // Ignore if file doesn't exist
-    }
-    try {
-      await unlink(`${TEST_DB_PATH}-wal`);
-    } catch {
-      // Ignore
-    }
-    try {
-      await unlink(`${TEST_DB_PATH}-shm`);
-    } catch {
-      // Ignore
-    }
-  }
 
   describe("initialization", () => {
     test("should initialize without errors", () => {

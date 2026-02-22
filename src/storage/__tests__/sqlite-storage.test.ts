@@ -1,11 +1,9 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { unlink } from "fs/promises";
+import { mkdtemp, rm } from "fs/promises";
 import { SqliteStorage } from "../sqlite-storage.js";
 import type { LogEntry, PrintJob } from "../../core/index.js";
-
-const TEST_DB_PATH = join(tmpdir(), "test-sqlite-storage.db");
 
 function createTestLogEntry(overrides?: Partial<LogEntry>): LogEntry {
   return {
@@ -33,35 +31,20 @@ function createTestPrintJob(logEntry: LogEntry, overrides?: Partial<PrintJob>): 
 
 describe("SqliteStorage", () => {
   let storage: SqliteStorage;
+  let testDir: string;
+  let testDbPath: string;
 
   beforeEach(async () => {
-    await cleanupTestDb();
-    storage = new SqliteStorage(TEST_DB_PATH);
+    testDir = await mkdtemp(join(tmpdir(), "test-sqlite-storage-"));
+    testDbPath = join(testDir, "test.db");
+    storage = new SqliteStorage(testDbPath);
     await storage.initialize();
   });
 
   afterEach(async () => {
     await storage.shutdown();
-    await cleanupTestDb();
+    await rm(testDir, { recursive: true, force: true });
   });
-
-  async function cleanupTestDb() {
-    try {
-      await unlink(TEST_DB_PATH);
-    } catch {
-      // Ignore if file doesn't exist
-    }
-    try {
-      await unlink(`${TEST_DB_PATH}-wal`);
-    } catch {
-      // Ignore
-    }
-    try {
-      await unlink(`${TEST_DB_PATH}-shm`);
-    } catch {
-      // Ignore
-    }
-  }
 
   describe("StoragePlugin interface", () => {
     test("should have correct name", () => {
@@ -346,7 +329,7 @@ describe("SqliteStorage", () => {
 
   describe("error handling", () => {
     test("should throw when not initialized", async () => {
-      const uninitializedStorage = new SqliteStorage(join(tmpdir(), "uninit.db"));
+      const uninitializedStorage = new SqliteStorage(join(testDir, "uninit.db"));
       await expect(uninitializedStorage.save(createTestLogEntry())).rejects.toThrow(
         "SqliteStorage not initialized",
       );

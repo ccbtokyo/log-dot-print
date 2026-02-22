@@ -100,7 +100,9 @@ export class SqliteStorage implements StoragePlugin, QueuePersistencePlugin {
   }
 
   async initialize(): Promise<void> {
-    await mkdir(dirname(this.dbPath), { recursive: true });
+    if (this.dbPath !== ":memory:") {
+      await mkdir(dirname(this.dbPath), { recursive: true });
+    }
     this.db = new Database(this.dbPath);
     this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec("PRAGMA foreign_keys = ON");

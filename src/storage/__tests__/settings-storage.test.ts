@@ -1,42 +1,23 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { unlink } from "fs/promises";
+import { mkdtemp, rm } from "fs/promises";
 import { SqliteStorage } from "../sqlite-storage.js";
-
-const TEST_DB_PATH = join(tmpdir(), "test-settings-storage.db");
 
 describe("SqliteStorage Settings", () => {
   let storage: SqliteStorage;
+  let testDir: string;
 
   beforeEach(async () => {
-    await cleanupTestDb();
-    storage = new SqliteStorage(TEST_DB_PATH);
+    testDir = await mkdtemp(join(tmpdir(), "test-settings-storage-"));
+    storage = new SqliteStorage(join(testDir, "test.db"));
     await storage.initialize();
   });
 
   afterEach(async () => {
     await storage.shutdown();
-    await cleanupTestDb();
+    await rm(testDir, { recursive: true, force: true });
   });
-
-  async function cleanupTestDb() {
-    try {
-      await unlink(TEST_DB_PATH);
-    } catch {
-      // Ignore if file doesn't exist
-    }
-    try {
-      await unlink(`${TEST_DB_PATH}-wal`);
-    } catch {
-      // Ignore
-    }
-    try {
-      await unlink(`${TEST_DB_PATH}-shm`);
-    } catch {
-      // Ignore
-    }
-  }
 
   describe("getSetting / setSetting", () => {
     test("should return null for non-existent setting", async () => {

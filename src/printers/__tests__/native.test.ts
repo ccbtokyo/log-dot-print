@@ -25,6 +25,11 @@ function enableWindowsPlatform(printer: NativePrinter): void {
   (printer as any).isWindowsPlatform = () => true;
 }
 
+function disableWindowsPlatform(printer: NativePrinter): void {
+  // biome-ignore lint/suspicious/noExplicitAny: test-only override of private method
+  (printer as any).isWindowsPlatform = () => false;
+}
+
 // Test fixtures
 function createTestConfig(): SystemConfig {
   return {
@@ -599,7 +604,7 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      // Do NOT call enableWindowsPlatform — default is non-Windows
+      disableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
 
       const job = createPdfPrintJob();
@@ -658,6 +663,42 @@ describe("NativePrinter", () => {
       const content = await readFile(job.filePath!);
       expect(content[0]).toBe(0x25);
       expect(content[1]).toBe(0x50);
+
+      await printer.shutdown();
+    });
+
+    test("does not pass custom paper size to SumatraPDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "Custom.11x15.5in",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperSize).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
+    test("passes standard paper size to SumatraPDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "A4",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperSize).toBe("A4");
 
       await printer.shutdown();
     });
