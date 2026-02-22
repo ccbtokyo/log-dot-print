@@ -325,5 +325,49 @@ describe("PdfConverter", () => {
       const options = (converter as any).options;
       expect(options.paperSize).toBe("Letter");
     });
+
+    test("should default landscape to false (portrait)", () => {
+      const converter = new PdfConverter();
+      const options = (converter as any).options;
+      expect(options.landscape).toBe(false);
+    });
+
+    test("should allow overriding landscape to true", () => {
+      const converter = new PdfConverter({ landscape: true });
+      const options = (converter as any).options;
+      expect(options.landscape).toBe(true);
+    });
+  });
+
+  describe("subprocess support", () => {
+    test("should set useSubprocess based on platform", () => {
+      const converter = new PdfConverter();
+      const useSubprocess = (converter as any).useSubprocess;
+      expect(typeof useSubprocess).toBe("boolean");
+      // On non-Windows, useSubprocess should be false
+      if (process.platform !== "win32") {
+        expect(useSubprocess).toBe(false);
+      }
+    });
+
+    test("should skip browser initialization in subprocess mode", async () => {
+      const converter = new PdfConverter();
+      // Force subprocess mode for testing
+      (converter as any).useSubprocess = true;
+
+      await converter.initialize();
+
+      // Browser should remain null in subprocess mode
+      expect((converter as any).browser).toBeNull();
+    });
+
+    test("should be safe to shutdown in subprocess mode", async () => {
+      const converter = new PdfConverter();
+      (converter as any).useSubprocess = true;
+
+      // shutdown should not throw
+      await converter.shutdown();
+      expect((converter as any).browser).toBeNull();
+    });
   });
 });

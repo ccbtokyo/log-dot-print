@@ -190,19 +190,23 @@ export class LogPrintApp {
     console.log("[App] Checking conversion config...");
     if (this.config.conversion?.enabled) {
       const conversionConfig = this.config.conversion;
-      if (conversionConfig.format === "pdf") {
+      if (conversionConfig.format === "pdf" && !conversionConfig.rasterize) {
         console.log("[App] PDF converter enabled, initializing...");
         this.pdfConverter = await createPdfConverter({
           cropToContent: conversionConfig.cropToContent,
+          landscape: false,
         });
         if (this.pdfConverter) {
           await this.pdfConverter.initialize();
           console.log("[App] PDF conversion enabled");
         }
       } else {
-        console.log("[App] Image converter enabled, initializing...");
+        const imageFormat = conversionConfig.format === "pdf" ? "png" : conversionConfig.format;
+        console.log(
+          `[App] Image converter enabled (format=${imageFormat}${conversionConfig.rasterize ? ", rasterize" : ""}), initializing...`,
+        );
         this.imageConverter = await createImageConverter({
-          format: conversionConfig.format,
+          format: imageFormat as "png" | "bmp",
           width: conversionConfig.width,
           grayscale: conversionConfig.grayscale,
         });
@@ -217,7 +221,6 @@ export class LogPrintApp {
 
     // Initialize formatter — inject stored paper size if not explicitly set in config
     console.log("[App] Initializing formatter...");
-    let configForFormatter = this.config;
     const fmt = this.config.format;
     if (
       (fmt.outputFormat === "html" || fmt.outputFormat === "replay") &&
@@ -229,13 +232,13 @@ export class LogPrintApp {
         ? await sqliteStorage.getSetting("printer.paperSize")
         : null;
       if (storedPaperSize) {
-        configForFormatter = {
+        this.config = {
           ...this.config,
           format: { ...fmt, pdfPaperSize: storedPaperSize },
         };
       }
     }
-    await this.formatter.initialize(this.eventBus, configForFormatter);
+    await this.formatter.initialize(this.eventBus, this.config);
     console.log("[App] Formatter initialized");
 
     // Initialize printer

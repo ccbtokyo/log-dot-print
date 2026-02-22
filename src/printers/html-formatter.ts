@@ -102,7 +102,14 @@ export class HtmlFormatter implements LogFormatterPlugin {
     }`
       : "";
 
-    const pageSizeRule = pdfPaperSize ? `size: ${paperNameToCssPageSize(pdfPaperSize)};` : "";
+    const cssPageSize = pdfPaperSize ? paperNameToCssPageSize(pdfPaperSize) : "";
+    // Only append portrait keyword for standard page-size names (e.g. "A4").
+    // Explicit dimensions (e.g. "11in 15.5in") already encode orientation via width/height.
+    const pageSizeRule = cssPageSize
+      ? cssPageSize.includes(" ")
+        ? `size: ${cssPageSize};`
+        : `size: ${cssPageSize} portrait;`
+      : "";
 
     const css = `
     @page {

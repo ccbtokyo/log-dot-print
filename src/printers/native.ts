@@ -10,7 +10,11 @@ import { join } from "node:path";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 
 import { BasePrinter } from "./base-printer.js";
-import { resolvePaperSize, normalizePaperName } from "./paper-size-resolver.js";
+import {
+  resolvePaperSize,
+  normalizePaperName,
+  parsePaperDimensions,
+} from "./paper-size-resolver.js";
 import { printerRegistry } from "./registry.js";
 import type { PrintJob, PrinterType, PrinterStatus, PrintContentType } from "../core/types.js";
 
@@ -73,6 +77,8 @@ export interface NativePrinterOptions {
   color?: boolean;
   /** Landscape orientation */
   landscape?: boolean;
+  /** Fit content to page (default: false = original size / 100%) */
+  fitToPage?: boolean;
   /** Directory to persist print files for later download (default: ./data/prints) */
   persistDir?: string;
   /** Callback to get the current printer name from storage */
@@ -121,6 +127,7 @@ export class NativePrinter extends BasePrinter {
     const duplex = typeof options.duplex === "boolean" ? options.duplex : false;
     const color = typeof options.color === "boolean" ? options.color : false;
     const landscape = typeof options.landscape === "boolean" ? options.landscape : false;
+    const fitToPage = typeof options.fitToPage === "boolean" ? options.fitToPage : false;
     const quality =
       options.quality === "draft" || options.quality === "normal" || options.quality === "high"
         ? options.quality
@@ -141,6 +148,7 @@ export class NativePrinter extends BasePrinter {
       quality,
       color,
       landscape,
+      fitToPage,
       persistDir,
     };
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
@@ -288,9 +296,31 @@ export class NativePrinter extends BasePrinter {
         }
       }
 
+      // Build CUPS options for orientation and scaling control
+      type CUPSOptions = import("@printers/printers").CUPSOptions;
+      const cupsOptions: Partial<CUPSOptions> = {};
+
+      // Only send orientation-requested for standard paper names.
+      // Custom dimensions (e.g. "Custom.15x11in") already encode orientation
+      // via width/height, and CUPS would mis-rotate if we also set portrait.
+      const resolvedIsCustomDims = printOptions.paperSize
+        ? parsePaperDimensions(printOptions.paperSize) !== null
+        : false;
+      if (!this.options.landscape && !resolvedIsCustomDims) {
+        cupsOptions["orientation-requested"] = 3; // portrait
+      }
+      if (!this.options.fitToPage) {
+        cupsOptions["fit-to-page"] = false;
+        cupsOptions["natural-scaling"] = 100;
+      }
+
       // Print the file
       // Explicitly wait for completion before removing the temp file.
-      await targetPrinter.printFile(tempFile, { simple: printOptions, waitForCompletion: true });
+      await targetPrinter.printFile(tempFile, {
+        simple: printOptions,
+        cups: cupsOptions,
+        waitForCompletion: true,
+      });
 
       // Persist print file (always enabled with default directory)
       await mkdir(this.options.persistDir, { recursive: true });

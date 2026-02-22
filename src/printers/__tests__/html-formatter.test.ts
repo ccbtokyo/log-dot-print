@@ -224,7 +224,7 @@ describe("HtmlFormatter", () => {
 
       const result = formatter.format(entry);
 
-      expect(result).toContain("size: A4;");
+      expect(result).toContain("size: A4 portrait;");
     });
 
     test("uses pdfPaperSize as CSS @page size when set to Custom inch format", async () => {
@@ -233,6 +233,7 @@ describe("HtmlFormatter", () => {
 
       const result = formatter.format(entry);
 
+      // Custom dimensions should NOT have portrait keyword (it's invalid CSS)
       expect(result).toContain("size: 11in 15.5in;");
     });
 
@@ -244,6 +245,26 @@ describe("HtmlFormatter", () => {
 
       // @page block should not contain a size declaration
       expect(result).not.toMatch(/@page\s*\{[^}]*\bsize:/);
+    });
+
+    test("includes portrait keyword in @page size rule for standard names", async () => {
+      await formatter.initialize(mockEventBus, createConfig({ pdfPaperSize: "A4" }));
+      const entry = createEntry();
+
+      const result = formatter.format(entry);
+
+      expect(result).toContain("size: A4 portrait;");
+    });
+
+    test("does not include portrait keyword for custom dimensions", async () => {
+      await formatter.initialize(mockEventBus, createConfig({ pdfPaperSize: "Custom.11x15.5in" }));
+      const entry = createEntry();
+
+      const result = formatter.format(entry);
+
+      // Explicit dimensions already encode orientation via width/height ordering
+      expect(result).toContain("size: 11in 15.5in;");
+      expect(result).not.toContain("portrait");
     });
   });
 

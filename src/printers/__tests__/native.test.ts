@@ -327,6 +327,86 @@ describe("NativePrinter", () => {
     });
   });
 
+  describe("CUPS options", () => {
+    test("sends orientation-requested=3 when landscape is false (default)", async () => {
+      const printer = new NativePrinter({ printerName: "EPSON_PX1VL" });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.cups).toBeDefined();
+      expect(options.cups["orientation-requested"]).toBe(3);
+
+      await printer.shutdown();
+    });
+
+    test("does not send orientation-requested when landscape is true", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        landscape: true,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.cups?.["orientation-requested"]).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
+    test("does not send orientation-requested for custom dimensions paper", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperSize: "Custom.15x11in",
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      // Custom dimensions encode orientation via width/height
+      expect(options.cups?.["orientation-requested"]).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
+    test("sends fit-to-page=false and natural-scaling=100 by default", async () => {
+      const printer = new NativePrinter({ printerName: "EPSON_PX1VL" });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.cups["fit-to-page"]).toBe(false);
+      expect(options.cups["natural-scaling"]).toBe(100);
+
+      await printer.shutdown();
+    });
+
+    test("does not send scaling options when fitToPage is true", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        fitToPage: true,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob();
+      await printer.print(job);
+
+      const [, options] = mockNamedPrinter.printFile.mock.calls[0];
+      expect(options.cups?.["fit-to-page"]).toBeUndefined();
+      expect(options.cups?.["natural-scaling"]).toBeUndefined();
+
+      await printer.shutdown();
+    });
+  });
+
   describe("shutdown", () => {
     test("disconnects properly", async () => {
       const printer = new NativePrinter({ printerName: "EPSON_PX1VL" });
