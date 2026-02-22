@@ -1,7 +1,4 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { mkdtemp, rm } from "fs/promises";
 import { SqliteStorage } from "../sqlite-storage.js";
 import type { LogEntry, PrintJob } from "../../core/index.js";
 
@@ -31,19 +28,14 @@ function createTestPrintJob(logEntry: LogEntry, overrides?: Partial<PrintJob>): 
 
 describe("SqliteStorage", () => {
   let storage: SqliteStorage;
-  let testDir: string;
-  let testDbPath: string;
 
   beforeEach(async () => {
-    testDir = await mkdtemp(join(tmpdir(), "test-sqlite-storage-"));
-    testDbPath = join(testDir, "test.db");
-    storage = new SqliteStorage(testDbPath);
+    storage = new SqliteStorage(":memory:");
     await storage.initialize();
   });
 
   afterEach(async () => {
     await storage.shutdown();
-    await rm(testDir, { recursive: true, force: true });
   });
 
   describe("StoragePlugin interface", () => {
@@ -329,7 +321,7 @@ describe("SqliteStorage", () => {
 
   describe("error handling", () => {
     test("should throw when not initialized", async () => {
-      const uninitializedStorage = new SqliteStorage(join(testDir, "uninit.db"));
+      const uninitializedStorage = new SqliteStorage(":memory:");
       await expect(uninitializedStorage.save(createTestLogEntry())).rejects.toThrow(
         "SqliteStorage not initialized",
       );

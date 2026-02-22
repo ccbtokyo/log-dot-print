@@ -1,7 +1,4 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { mkdtemp, rm } from "fs/promises";
 import { TypedEventEmitter } from "../../core/index.js";
 import type { LogEntry, PrintJob } from "../../core/index.js";
 import { SqliteStorage } from "../sqlite-storage.js";
@@ -35,11 +32,9 @@ describe("QueuePersistenceHandler", () => {
   let storage: SqliteStorage;
   let eventBus: TypedEventEmitter;
   let handler: QueuePersistenceHandler;
-  let testDir: string;
 
   beforeEach(async () => {
-    testDir = await mkdtemp(join(tmpdir(), "test-queue-persistence-"));
-    storage = new SqliteStorage(join(testDir, "test.db"));
+    storage = new SqliteStorage(":memory:");
     await storage.initialize();
     eventBus = new TypedEventEmitter();
     handler = new QueuePersistenceHandler(storage, eventBus);
@@ -48,7 +43,6 @@ describe("QueuePersistenceHandler", () => {
   afterEach(async () => {
     handler.shutdown();
     await storage.shutdown();
-    await rm(testDir, { recursive: true, force: true });
   });
 
   describe("initialization", () => {

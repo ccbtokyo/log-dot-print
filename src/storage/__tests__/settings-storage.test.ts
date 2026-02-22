@@ -1,22 +1,16 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { mkdtemp, rm } from "fs/promises";
 import { SqliteStorage } from "../sqlite-storage.js";
 
 describe("SqliteStorage Settings", () => {
   let storage: SqliteStorage;
-  let testDir: string;
 
   beforeEach(async () => {
-    testDir = await mkdtemp(join(tmpdir(), "test-settings-storage-"));
-    storage = new SqliteStorage(join(testDir, "test.db"));
+    storage = new SqliteStorage(":memory:");
     await storage.initialize();
   });
 
   afterEach(async () => {
     await storage.shutdown();
-    await rm(testDir, { recursive: true, force: true });
   });
 
   describe("getSetting / setSetting", () => {
