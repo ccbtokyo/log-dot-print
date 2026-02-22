@@ -1,17 +1,40 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import { ReplayFormatter } from "../replay-formatter.js";
-import type { LogEntry, SystemConfig, ReplayFormatConfig } from "../../core/types.js";
+import type {
+  LogEntry,
+  SystemConfig,
+  ReplayFormatConfig,
+  GameplayPayload,
+} from "../../core/types.js";
 import { TypedEventEmitter } from "../../core/events.js";
 
 /**
- * ReplayFormatter tests
+ * ReplayFormatter tests — gameplay JSON format
  *
- * @see /Users/eotel/ghq/github.com/ccbtokyo/log-dot-print/plans/replay-formatter-plan.md
+ * @see /Users/eotel/ghq/github.com/ccbtokyo/log-dot-print/plans/gameplay-json-plan.md
  * @related HtmlFormatter
  */
 describe("ReplayFormatter", () => {
   let formatter: ReplayFormatter;
   let eventBus: TypedEventEmitter;
+
+  const createPayload = (overrides?: Partial<GameplayPayload>): GameplayPayload => ({
+    gameplay: [
+      {
+        npc: { replay_id: "r1", nickname: "sho" },
+        dialogue: [
+          { role: "player", text: "こんにちは" },
+          { role: "npc", text: "こんにちは！元気ですか？" },
+        ],
+      },
+    ],
+    respawn: {
+      nickname: "Toshi",
+      age: "40s",
+      gender: "male",
+    },
+    ...overrides,
+  });
 
   const createLogEntry = (message: string): LogEntry => ({
     id: "test-id-123",
@@ -52,11 +75,7 @@ describe("ReplayFormatter", () => {
     test("generates valid HTML structure with DOCTYPE", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Hello" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("<!DOCTYPE html>");
@@ -69,103 +88,139 @@ describe("ReplayFormatter", () => {
     test("sets lang attribute to ja", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Hello" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain('lang="ja"');
     });
   });
 
-  describe("message rendering", () => {
-    test("renders NPC messages with npc class (left-aligned)", async () => {
+  describe("header rendering", () => {
+    test("displays respawn nickname in header", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("Toshi");
+      expect(html).toContain("player-header");
+    });
+
+    test("displays respawn age in header", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("40s");
+    });
+
+    test("displays respawn gender in header", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("male");
+    });
+  });
+
+  describe("NPC section rendering", () => {
+    test("displays NPC nickname as section header", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("npc-section-header");
+      expect(html).toContain("sho");
+    });
+
+    test("renders section dividers between multiple NPC conversations", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        gameplay: [
           {
-            timestamp: "2024-01-15T10:30:00Z",
-            username: "NPC1",
-            type: "npc",
-            message: "こんにちは",
+            npc: { replay_id: "r1", nickname: "sho" },
+            dialogue: [{ role: "npc", text: "Hello" }],
           },
-        ]),
-      );
+          {
+            npc: { replay_id: "r2", nickname: "yuki" },
+            dialogue: [{ role: "npc", text: "Hi" }],
+          },
+        ],
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("sho");
+      expect(html).toContain("yuki");
+      expect(html).toContain("section-divider");
+    });
+  });
+
+  describe("dialogue rendering", () => {
+    test("renders NPC messages with npc class", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain('class="message npc"');
-      expect(html).toContain("こんにちは");
+      expect(html).toContain("こんにちは！元気ですか？");
     });
 
-    test("renders Player messages with player class (right-aligned)", async () => {
+    test("renders Player messages with player class", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          {
-            timestamp: "2024-01-15T10:30:05Z",
-            username: "Player1",
-            type: "player",
-            message: "やあ!",
-          },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain('class="message player"');
-      expect(html).toContain("やあ!");
+      expect(html).toContain("こんにちは");
     });
 
-    test("renders message in correct format ([name] HH:mm | message)", async () => {
+    test("NPC messages display npc.nickname as speaker", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          {
-            timestamp: "2024-01-15T10:30:00Z",
-            username: "NPC1",
-            type: "npc",
-            message: "Hello",
-          },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      // Should contain "[NPC1] 10:30 | Hello" format
-      expect(html).toContain("[NPC1]");
-      expect(html).toContain("10:30");
-      expect(html).toContain(" | ");
-      expect(html).toContain("Hello");
+      // NPC message should show NPC nickname
+      const npcMessageMatch = html.match(/class="message npc"[^>]*>([^<]*(?:<[^>]*>[^<]*)*)/);
+      expect(npcMessageMatch).not.toBeNull();
+      expect(npcMessageMatch![0]).toContain("sho");
+    });
+
+    test("Player messages display respawn.nickname as speaker", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // Player message should show respawn nickname
+      const playerMessageMatch = html.match(/class="message player"[^>]*>([^<]*(?:<[^>]*>[^<]*)*)/);
+      expect(playerMessageMatch).not.toBeNull();
+      expect(playerMessageMatch![0]).toContain("Toshi");
     });
 
     test("renders multiple messages in order", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
+      const payload = createPayload({
+        gameplay: [
           {
-            timestamp: "2024-01-15T10:30:00Z",
-            username: "NPC1",
-            type: "npc",
-            message: "Message 1",
+            npc: { replay_id: "r1", nickname: "sho" },
+            dialogue: [
+              { role: "player", text: "Message 1" },
+              { role: "npc", text: "Message 2" },
+              { role: "player", text: "Message 3" },
+            ],
           },
-          {
-            timestamp: "2024-01-15T10:30:05Z",
-            username: "Player1",
-            type: "player",
-            message: "Message 2",
-          },
-          {
-            timestamp: "2024-01-15T10:30:10Z",
-            username: "NPC2",
-            type: "npc",
-            message: "Message 3",
-          },
-        ]),
-      );
+        ],
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
       const html = formatter.format(entry);
 
       const msg1Pos = html.indexOf("Message 1");
@@ -175,41 +230,75 @@ describe("ReplayFormatter", () => {
       expect(msg1Pos).toBeLessThan(msg2Pos);
       expect(msg2Pos).toBeLessThan(msg3Pos);
     });
+
+    test("does not render timestamps", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // No timestamp-like patterns in message content
+      expect(html).not.toContain("--:--");
+      expect(html).not.toMatch(/class="message[^"]*"[^>]*>[^<]*\d{2}:\d{2}[^<]*/);
+    });
   });
 
   describe("XSS prevention", () => {
-    test("escapes HTML in username", async () => {
+    test("escapes HTML in NPC nickname", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
+      const payload = createPayload({
+        gameplay: [
           {
-            timestamp: "2024-01-15T10:30:00Z",
-            username: "<script>alert('xss')</script>",
-            type: "npc",
-            message: "Test",
+            npc: {
+              replay_id: "r1",
+              nickname: "<script>alert('xss')</script>",
+            },
+            dialogue: [{ role: "npc", text: "Test" }],
           },
-        ]),
-      );
+        ],
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
       const html = formatter.format(entry);
 
       expect(html).not.toContain("<script>");
       expect(html).toContain("&lt;script&gt;");
     });
 
-    test("escapes HTML in message", async () => {
+    test("escapes HTML in respawn nickname", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
+      const payload = createPayload({
+        respawn: {
+          nickname: "<img src=x onerror=alert(1)>",
+          age: "30s",
+          gender: "female",
+        },
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain("<img");
+      expect(html).toContain("&lt;img");
+    });
+
+    test("escapes HTML in dialogue text", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        gameplay: [
           {
-            timestamp: "2024-01-15T10:30:00Z",
-            username: "NPC1",
-            type: "npc",
-            message: '<img src="x" onerror="alert(1)">',
+            npc: { replay_id: "r1", nickname: "NPC1" },
+            dialogue: [
+              {
+                role: "npc",
+                text: '<img src="x" onerror="alert(1)">',
+              },
+            ],
           },
-        ]),
-      );
+        ],
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
       const html = formatter.format(entry);
 
       expect(html).not.toContain('<img src="x"');
@@ -226,11 +315,7 @@ describe("ReplayFormatter", () => {
         }),
       );
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).not.toContain("<script>");
@@ -246,11 +331,7 @@ describe("ReplayFormatter", () => {
         }),
       );
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).not.toContain("<script>");
@@ -265,17 +346,11 @@ describe("ReplayFormatter", () => {
         }),
       );
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      // Invalid color should fall back to default
       expect(html).not.toContain("<script>");
       expect(html).toContain("color: #333");
-      // The malicious string should not appear in the output
       expect(html).not.toContain("alert(1)");
     });
   });
@@ -292,7 +367,7 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("JSON");
     });
 
-    test("returns error HTML for non-array JSON", async () => {
+    test("returns error HTML when gameplay key is missing", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify({ key: "value" }));
@@ -301,10 +376,90 @@ describe("ReplayFormatter", () => {
       expect(html).toContain('class="error"');
     });
 
-    test("handles empty array gracefully", async () => {
+    test("returns error HTML when gameplay is not an array", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(JSON.stringify([]));
+      const entry = createLogEntry(JSON.stringify({ gameplay: "not-array", respawn: {} }));
+      const html = formatter.format(entry);
+
+      expect(html).toContain('class="error"');
+    });
+
+    test("handles empty dialogue array gracefully", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        gameplay: [
+          {
+            npc: { replay_id: "r1", nickname: "sho" },
+            dialogue: [],
+          },
+        ],
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).not.toContain('class="error"');
+      expect(html).toContain("sho");
+    });
+
+    test("handles malformed gameplay element without npc field", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: [{}],
+          respawn: { nickname: "A", age: "20s", gender: "female" },
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).not.toContain('class="error"');
+    });
+
+    test("handles malformed gameplay element with non-array dialogue", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: [{ npc: { replay_id: "r1", nickname: "sho" }, dialogue: "not-array" }],
+          respawn: { nickname: "A", age: "20s", gender: "female" },
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).not.toContain('class="error"');
+      expect(html).toContain("sho");
+    });
+
+    test("handles missing respawn gracefully", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: [
+            {
+              npc: { replay_id: "r1", nickname: "sho" },
+              dialogue: [{ role: "npc", text: "Hello" }],
+            },
+          ],
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).not.toContain('class="error"');
+      expect(html).toContain("sho");
+    });
+
+    test("handles empty gameplay array gracefully", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({ gameplay: [] });
+      const entry = createLogEntry(JSON.stringify(payload));
       const html = formatter.format(entry);
 
       expect(html).toContain("<!DOCTYPE html>");
@@ -312,95 +467,29 @@ describe("ReplayFormatter", () => {
     });
   });
 
-  describe("edge cases", () => {
-    test("handles null fields without throwing", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const entry = createLogEntry(
-        JSON.stringify([{ timestamp: null, username: null, type: "player", message: null }]),
-      );
-      const html = formatter.format(entry);
-
-      expect(html).toContain("<!DOCTYPE html>");
-      expect(html).toContain("Unknown");
-      expect(html).toContain("--:--");
-    });
-
-    test("handles non-object items in the array", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const entry = createLogEntry(JSON.stringify([null, 1, "hello"]));
-      const html = formatter.format(entry);
-
-      expect(html).toContain("<!DOCTYPE html>");
-      expect(html).toContain("hello");
-      expect(html).toContain("Unknown");
-    });
-
-    test("shows --:-- for invalid timestamps", async () => {
-      await formatter.initialize(eventBus, createConfig());
-
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "not-a-date", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
-      const html = formatter.format(entry);
-
-      expect(html).toContain("--:--");
-    });
-  });
-
   describe("configuration", () => {
     test("applies custom font family", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          fontFamily: "Noto Sans JP",
-        }),
-      );
+      await formatter.initialize(eventBus, createConfig({ fontFamily: "Noto Sans JP" }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("Noto Sans JP");
     });
 
     test("applies custom font size", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          fontSize: 18,
-        }),
-      );
+      await formatter.initialize(eventBus, createConfig({ fontSize: 18 }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("18px");
     });
 
     test("applies custom page width", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          pageWidth: 80,
-        }),
-      );
+      await formatter.initialize(eventBus, createConfig({ pageWidth: 80 }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("80mm");
@@ -409,11 +498,7 @@ describe("ReplayFormatter", () => {
     test("uses pdfPaperSize as CSS @page size when set to standard name", async () => {
       await formatter.initialize(eventBus, createConfig({ pdfPaperSize: "A4" }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("size: A4;");
@@ -422,11 +507,7 @@ describe("ReplayFormatter", () => {
     test("uses pdfPaperSize as CSS @page size when set to Custom inch format", async () => {
       await formatter.initialize(eventBus, createConfig({ pdfPaperSize: "Custom.11x15.5in" }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("size: 11in 15.5in;");
@@ -435,11 +516,7 @@ describe("ReplayFormatter", () => {
     test("falls back to pageWidth mm when pdfPaperSize is not set", async () => {
       await formatter.initialize(eventBus, createConfig({ pageWidth: 100 }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("size: 100mm auto;");
@@ -454,11 +531,7 @@ describe("ReplayFormatter", () => {
         }),
       );
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("@font-face");
@@ -475,76 +548,36 @@ describe("ReplayFormatter", () => {
         }),
       );
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      // Body font uses sanitized font family list with proper quoting
       expect(html).toContain("font-family: 'CustomFont', sans-serif");
-      // @font-face uses only the primary font name
       expect(html).toContain("font-family: 'CustomFont'");
-      // Should not quote the entire comma-separated list
       expect(html).not.toContain("font-family: 'CustomFont, sans-serif'");
     });
 
     test("applies custom NPC color", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          npcColor: "#ff0000",
-        }),
-      );
+      await formatter.initialize(eventBus, createConfig({ npcColor: "#ff0000" }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("#ff0000");
     });
 
     test("applies custom Player color", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          playerColor: "#00ff00",
-        }),
-      );
+      await formatter.initialize(eventBus, createConfig({ playerColor: "#00ff00" }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          {
-            timestamp: "2024-01-15T10:30:00Z",
-            username: "Player1",
-            type: "player",
-            message: "Test",
-          },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("#00ff00");
     });
 
     test("falls back to defaults for non-positive sizes", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          fontSize: 0,
-          pageWidth: 0,
-        }),
-      );
+      await formatter.initialize(eventBus, createConfig({ fontSize: 0, pageWidth: 0 }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain("28px");
@@ -552,25 +585,9 @@ describe("ReplayFormatter", () => {
     });
 
     test("falls back to default colors for empty strings", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          npcColor: "",
-          playerColor: "#00ff00",
-        }),
-      );
+      await formatter.initialize(eventBus, createConfig({ npcColor: "", playerColor: "#00ff00" }));
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-          {
-            timestamp: "2024-01-15T10:30:01Z",
-            username: "Player1",
-            type: "player",
-            message: "Test",
-          },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain(".message.npc");
@@ -583,11 +600,7 @@ describe("ReplayFormatter", () => {
     test("includes CSS for npc left alignment", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain(".message.npc");
@@ -597,11 +610,7 @@ describe("ReplayFormatter", () => {
     test("includes CSS for player right alignment", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
       expect(html).toContain(".message.player");
@@ -625,14 +634,9 @@ describe("ReplayFormatter", () => {
 
       await formatter.initialize(eventBus, nonReplayConfig);
 
-      const entry = createLogEntry(
-        JSON.stringify([
-          { timestamp: "2024-01-15T10:30:00Z", username: "NPC1", type: "npc", message: "Test" },
-        ]),
-      );
+      const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      // Should still work with default settings
       expect(html).toContain("<!DOCTYPE html>");
     });
 
@@ -643,57 +647,48 @@ describe("ReplayFormatter", () => {
   });
 
   describe("API integration format", () => {
-    test("formats ChatMessage array (as sent via API) into valid HTML", async () => {
+    test("formats gameplay payload into valid HTML", async () => {
       await formatter.initialize(eventBus, createConfig());
 
-      // This is the exact format sent to POST /api/log
-      // API receives array → JSON.stringify → entry.message
-      const chatMessages = [
-        {
-          timestamp: "2024-01-15T10:30:00Z",
-          username: "ガイドNPC",
-          type: "npc",
-          message: "ようこそ、冒険者よ。",
+      const payload: GameplayPayload = {
+        gameplay: [
+          {
+            npc: { replay_id: "r1", nickname: "ガイドNPC" },
+            dialogue: [
+              { role: "npc", text: "ようこそ、冒険者よ。" },
+              { role: "player", text: "こんにちは！" },
+              {
+                role: "npc",
+                text: "何かお手伝いできることはありますか？",
+              },
+            ],
+          },
+        ],
+        respawn: {
+          nickname: "プレイヤー",
+          age: "30s",
+          gender: "male",
         },
-        {
-          timestamp: "2024-01-15T10:30:15Z",
-          username: "プレイヤー",
-          type: "player",
-          message: "こんにちは！",
-        },
-        {
-          timestamp: "2024-01-15T10:30:30Z",
-          username: "ガイドNPC",
-          type: "npc",
-          message: "何かお手伝いできることはありますか？",
-        },
-      ];
+      };
 
-      const entry = createLogEntry(JSON.stringify(chatMessages));
+      const entry = createLogEntry(JSON.stringify(payload));
       const html = formatter.format(entry);
 
-      // Verify HTML structure
       expect(html).toContain("<!DOCTYPE html>");
       expect(html).toContain('<html lang="ja">');
       expect(html).toContain("<head>");
       expect(html).toContain("<body>");
       expect(html).toContain("</html>");
 
-      // Verify all messages are rendered
       expect(html).toContain("ガイドNPC");
       expect(html).toContain("プレイヤー");
       expect(html).toContain("ようこそ、冒険者よ。");
       expect(html).toContain("こんにちは！");
       expect(html).toContain("何かお手伝いできることはありますか？");
 
-      // Verify message types
       expect(html).toContain('class="message npc"');
       expect(html).toContain('class="message player"');
 
-      // Verify time formatting
-      expect(html).toContain("10:30");
-
-      // Verify no error state
       expect(html).not.toContain('class="error"');
     });
 

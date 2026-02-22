@@ -160,6 +160,42 @@ export interface HtmlFormatConfig {
 /**
  * Replay format configuration for chat history formatting
  */
+/** NPC 情報 */
+export interface GameplayNpcInfo {
+  replay_id: string;
+  nickname: string;
+}
+
+/** 会話エントリ */
+export interface GameplayDialogueEntry {
+  role: "player" | "npc";
+  text: string;
+}
+
+/** gameplay 内の NPC 会話ブロック */
+export interface GameplayConversation {
+  npc: GameplayNpcInfo;
+  dialogue: GameplayDialogueEntry[];
+}
+
+/** respawn（プレイヤー）情報 */
+export interface GameplayRespawnInfo {
+  nickname: string;
+  age: string;
+  gender: string;
+  complaint_troubles?: string;
+  confession_true_feelings?: string;
+  rediscovering_relief?: string;
+  convai_key?: string;
+  convai_backstory?: string;
+}
+
+/** gameplay ペイロード全体 */
+export interface GameplayPayload {
+  gameplay: GameplayConversation[];
+  respawn: GameplayRespawnInfo;
+}
+
 export interface ReplayFormatConfig {
   outputFormat: "replay";
   /** Font family name to use */

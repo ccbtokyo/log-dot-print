@@ -5,18 +5,11 @@ import type {
   TypedEventEmitter,
   ReplayFormatConfig,
   PrintContentType,
+  GameplayPayload,
+  GameplayConversation,
+  GameplayRespawnInfo,
 } from "../core/index.js";
 import { paperNameToCssPageSize } from "./paper-size-resolver.js";
-
-/**
- * Chat message structure for re:play formatter
- */
-interface ChatMessage {
-  timestamp: string;
-  username: string;
-  type: "npc" | "player";
-  message: string;
-}
 
 /**
  * Default re:play format configuration
@@ -40,24 +33,26 @@ const DEFAULT_CONFIG: Required<
 };
 
 /**
- * Re:play formatter for chat history visualization
- * Formats JSON chat message arrays as HTML chat UI
+ * Re:play formatter for gameplay conversation visualization
+ * Formats gameplay JSON payloads as HTML chat UI
  *
  * Input format (in entry.message):
  * ```json
- * [
- *   {"timestamp": "2024-01-15T10:30:00Z", "username": "NPC1", "type": "npc", "message": "こんにちは"},
- *   {"timestamp": "2024-01-15T10:30:05Z", "username": "Player1", "type": "player", "message": "やあ!"}
- * ]
+ * {
+ *   "gameplay": [
+ *     {
+ *       "npc": { "replay_id": "...", "nickname": "sho" },
+ *       "dialogue": [
+ *         { "role": "player", "text": "こんにちは" },
+ *         { "role": "npc", "text": "こんにちは！..." }
+ *       ]
+ *     }
+ *   ],
+ *   "respawn": { "nickname": "Toshi", "age": "40s", "gender": "male" }
+ * }
  * ```
  *
- * Output format per message:
- * ```
- * {HH:mm}｜{name}
- * {message}
- * ```
- *
- * @see /Users/eotel/ghq/github.com/ccbtokyo/log-dot-print/plans/replay-formatter-plan.md
+ * @see /Users/eotel/ghq/github.com/ccbtokyo/log-dot-print/plans/gameplay-json-plan.md
  * @related HtmlFormatter
  */
 export class ReplayFormatter implements LogFormatterPlugin {
@@ -88,26 +83,29 @@ export class ReplayFormatter implements LogFormatterPlugin {
    * Format a log entry containing chat messages as HTML
    */
   format(entry: LogEntry): string {
-    let messages: ChatMessage[];
+    let payload: GameplayPayload;
 
     try {
       const parsed: unknown = JSON.parse(entry.message);
-      if (!Array.isArray(parsed)) {
-        return this.renderError("Invalid format: expected an array of chat messages");
+      if (!this.isRecord(parsed)) {
+        return this.renderError("Invalid format: expected a gameplay JSON object");
       }
-      messages = this.normalizeMessages(parsed);
+      if (!Array.isArray(parsed.gameplay)) {
+        return this.renderError("Invalid format: missing or invalid 'gameplay' array");
+      }
+      payload = parsed as unknown as GameplayPayload;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return this.renderError(`JSON parse error: ${errorMessage}`);
     }
 
-    return this.renderChatHtml(messages);
+    return this.renderGameplayHtml(payload);
   }
 
   /**
    * Render chat messages as HTML
    */
-  private renderChatHtml(messages: ChatMessage[]): string {
+  private renderGameplayHtml(payload: GameplayPayload): string {
     const {
       fontFamily,
       fontSize,
@@ -170,6 +168,30 @@ export class ReplayFormatter implements LogFormatterPlugin {
       padding: 20px ${safeSideMargin}mm;
       background: #fff;
     }
+    .player-header {
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #ccc;
+    }
+    .player-header .nickname {
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+    .player-header .meta {
+      color: #666;
+      font-size: 0.9em;
+    }
+    .npc-section-header {
+      font-weight: bold;
+      margin-top: 20px;
+      margin-bottom: 8px;
+      padding: 4px 0;
+    }
+    .section-divider {
+      border: none;
+      border-top: 1px solid #ccc;
+      margin: 20px 0;
+    }
     .chat-container {
       max-width: 100%;
     }
@@ -189,14 +211,38 @@ export class ReplayFormatter implements LogFormatterPlugin {
       margin-left: auto;
     }`;
 
-    const messagesHtml = messages
-      .map((msg) => {
-        const typeClass = msg.type === "player" ? "player" : "npc";
-        const timeStr = this.formatTime(msg.timestamp);
-        const content = `[${this.escapeHtml(msg.username)}] ${this.escapeHtml(timeStr)} | ${this.escapeHtml(msg.message)}`;
+    const respawn: GameplayRespawnInfo | undefined = payload.respawn;
+    const playerNickname = respawn?.nickname ?? "Player";
 
-        return `
-    <div class="message ${typeClass}">${content}</div>`;
+    const headerHtml = respawn
+      ? `
+    <div class="player-header">
+      <div class="nickname">${this.escapeHtml(respawn.nickname)}</div>
+      <div class="meta">${this.escapeHtml(respawn.age)} / ${this.escapeHtml(respawn.gender)}</div>
+    </div>`
+      : "";
+
+    const sectionsHtml = payload.gameplay
+      .map((conv: GameplayConversation, index: number) => {
+        const divider = index > 0 ? `\n    <hr class="section-divider">` : "";
+        const npcNickname = conv?.npc?.nickname ?? "NPC";
+        const npcHeader = `
+    <div class="npc-section-header">${this.escapeHtml(npcNickname)}</div>`;
+
+        const dialogue = Array.isArray(conv?.dialogue) ? conv.dialogue : [];
+        const dialogueHtml = dialogue
+          .map((entry) => {
+            const typeClass = entry.role === "player" ? "player" : "npc";
+            const speaker =
+              entry.role === "player"
+                ? this.escapeHtml(playerNickname)
+                : this.escapeHtml(npcNickname);
+            const content = `[${speaker}] ${this.escapeHtml(entry.text)}`;
+            return `\n    <div class="message ${typeClass}">${content}</div>`;
+          })
+          .join("");
+
+        return `${divider}${npcHeader}${dialogueHtml}`;
       })
       .join("");
 
@@ -209,7 +255,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
   <style>${fontFaceRule}${css}</style>
 </head>
 <body>
-  <div class="chat-container">${messagesHtml}
+  <div class="chat-container">${headerHtml}${sectionsHtml}
   </div>
 </body>
 </html>`;
@@ -264,23 +310,6 @@ export class ReplayFormatter implements LogFormatterPlugin {
   }
 
   /**
-   * Format ISO timestamp to HH:mm
-   */
-  private formatTime(isoTimestamp: string): string {
-    try {
-      const date = new Date(isoTimestamp);
-      if (Number.isNaN(date.getTime())) {
-        return "--:--";
-      }
-      const hours = date.getHours().toString().padStart(2, "0");
-      const minutes = date.getMinutes().toString().padStart(2, "0");
-      return `${hours}:${minutes}`;
-    } catch {
-      return "--:--";
-    }
-  }
-
-  /**
    * Escape HTML entities to prevent XSS
    */
   private escapeHtml(text: unknown): string {
@@ -303,36 +332,6 @@ export class ReplayFormatter implements LogFormatterPlugin {
     } catch {
       return String(value);
     }
-  }
-
-  private normalizeMessages(parsed: unknown[]): ChatMessage[] {
-    return parsed.map((item) => this.normalizeMessage(item));
-  }
-
-  private normalizeMessage(item: unknown): ChatMessage {
-    if (!this.isRecord(item)) {
-      return {
-        timestamp: "",
-        username: "Unknown",
-        type: "npc",
-        message: this.toSafeText(item),
-      };
-    }
-
-    const timestamp = typeof item.timestamp === "string" ? item.timestamp : "";
-    const usernameRaw = typeof item.username === "string" ? item.username : "";
-    const username = usernameRaw.trim().length > 0 ? usernameRaw : "Unknown";
-
-    const type = item.type === "player" ? "player" : "npc";
-
-    const message =
-      typeof item.message === "string"
-        ? item.message
-        : item.message === undefined
-          ? ""
-          : this.toSafeText(item.message);
-
-    return { timestamp, username, type, message };
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {
