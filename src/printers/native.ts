@@ -68,7 +68,6 @@ async function printPdfWithSumatraPDF(
   filePath: string,
   printerName: string,
   options: NativePrinterInternalOptions,
-  resolvedPaperSize?: string,
 ): Promise<void> {
   let ptpPrint: (pdf: string, opts?: import("pdf-to-printer").PrintOptions) => Promise<void>;
   try {
@@ -91,9 +90,7 @@ async function printPdfWithSumatraPDF(
   if (options.duplex) {
     printOptions.side = "duplex";
   }
-  if (resolvedPaperSize) {
-    printOptions.paperSize = resolvedPaperSize;
-  }
+  // paperSize / paperKind は渡さない — ドライバーの DEVMODE を維持
 
   await ptpPrint(filePath, printOptions);
 }
@@ -362,12 +359,7 @@ export class NativePrinter extends BasePrinter {
         // Windows + PDF: delegate to SumatraPDF via pdf-to-printer.
         // Avoids the RAW datatype issue where PDF binary is sent directly
         // to the printer, causing metadata like %PDF-1.4 to be printed as text.
-        await printPdfWithSumatraPDF(
-          tempFile,
-          targetPrinter.name,
-          this.options,
-          printOptions.paperSize,
-        );
+        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, this.options);
       } else {
         // All other cases: use @printers/printers native printing.
         // Explicitly wait for completion before removing the temp file.
