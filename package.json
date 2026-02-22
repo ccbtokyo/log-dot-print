@@ -11,6 +11,9 @@
   "scripts": {
     "build": "tsgo && bun run build:ui",
     "build:ui": "bun scripts/build-ui.ts",
+    "debug:printers": "bun scripts/debug-windows-printers.ts printers",
+    "debug:papers": "bun scripts/debug-windows-printers.ts papers",
+    "debug:bins": "bun scripts/debug-windows-printers.ts bins",
     "dev": "bun scripts/dev.ts",
     "dev:ui": "bun build src/ui/main.ts --outdir=dist/ui --format=esm --watch",
     "start": "node dist/cli.js",
