@@ -91,6 +91,12 @@ async function printPdfWithSumatraPDF(
   if (options.duplex) {
     printOptions.side = "duplex";
   }
+  if (options.bin) {
+    printOptions.bin = options.bin;
+  }
+  if (options.paperKind) {
+    printOptions.paperKind = options.paperKind;
+  }
   if (rawPaperSize && !rawPaperSize.startsWith("Custom.")) {
     // Pass raw paper name directly — Windows driver form names
     // (e.g. "15x11", "Fanfold 15 x 11 1/2 inch") are not CUPS-normalizable,
@@ -123,6 +129,10 @@ export interface NativePrinterOptions {
   landscape?: boolean;
   /** Fit content to page (default: false = original size / 100%) */
   fitToPage?: boolean;
+  /** Paper tray/bin number (SumatraPDF bin= parameter, Windows only) */
+  bin?: string;
+  /** Windows DEVMODE dmPaperSize number (SumatraPDF paperkind= parameter, Windows only) */
+  paperKind?: number;
   /** Directory to persist print files for later download (default: ./data/prints) */
   persistDir?: string;
   /** Callback to get the current printer name from storage */
@@ -184,6 +194,15 @@ export class NativePrinter extends BasePrinter {
       typeof options.paperSize === "string" && options.paperSize.trim()
         ? options.paperSize.trim()
         : undefined;
+    const bin =
+      typeof options.bin === "string" && options.bin.trim() ? options.bin.trim() : undefined;
+    const paperKind =
+      typeof options.paperKind === "number" &&
+      Number.isFinite(options.paperKind) &&
+      Number.isInteger(options.paperKind) &&
+      options.paperKind > 0
+        ? options.paperKind
+        : undefined;
     const persistDir =
       typeof options.persistDir === "string" && options.persistDir.trim()
         ? options.persistDir.trim()
@@ -197,6 +216,8 @@ export class NativePrinter extends BasePrinter {
       color,
       landscape,
       fitToPage,
+      bin,
+      paperKind,
       persistDir,
     };
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;

@@ -7,7 +7,8 @@
     "type": "native",
     "options": {
       "printerName": "EPSON VP-F4400N",
-      "paperSize": "15x11"
+      "paperSize": "15x11",
+      "paperKind": 120
     }
   },
   "queue": {

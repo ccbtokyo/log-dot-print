@@ -732,6 +732,76 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
+    test("passes configured bin to SumatraPDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        bin: "1",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.bin).toBe("1");
+
+      await printer.shutdown();
+    });
+
+    test("does not set bin on SumatraPDF when not configured", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.bin).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
+    test("passes configured paperKind to SumatraPDF", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        paperKind: 261,
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperKind).toBe(261);
+
+      await printer.shutdown();
+    });
+
+    test("does not set paperKind on SumatraPDF when not configured", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      enableWindowsPlatform(printer);
+      await printer.initialize(eventBus, config);
+
+      const job = createPdfPrintJob();
+      await printer.print(job);
+
+      const [, printOptions] = mockPrint.mock.calls[0];
+      expect(printOptions.paperKind).toBeUndefined();
+
+      await printer.shutdown();
+    });
+
     test("skips Custom.* CUPS format for SumatraPDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
