@@ -337,38 +337,41 @@ export class NativePrinter extends BasePrinter {
         configPdfPaperSize: storedPaperSize ?? undefined,
         storedPrinterPaperSize: this.options.paperSize,
       });
-      if (resolved) {
-        const normalized = normalizePaperName(resolved);
-        if (normalized) {
-          printOptions.paperSize = normalized;
-        }
-      }
-
-      // Build CUPS options for orientation and scaling control
-      type CUPSOptions = import("@printers/printers").CUPSOptions;
-      const cupsOptions: Partial<CUPSOptions> = {};
-
-      // Only send orientation-requested for standard paper names.
-      // Custom dimensions (e.g. "Custom.15x11in") already encode orientation
-      // via width/height, and CUPS would mis-rotate if we also set portrait.
-      const resolvedIsCustomDims = printOptions.paperSize
-        ? parsePaperDimensions(printOptions.paperSize) !== null
-        : false;
-      if (!this.options.landscape && !resolvedIsCustomDims) {
-        cupsOptions["orientation-requested"] = 3; // portrait
-      }
-      if (!this.options.fitToPage) {
-        cupsOptions["fit-to-page"] = false;
-        cupsOptions["natural-scaling"] = 100;
-      }
 
       // Print the file
       if (this.isWindowsPlatform() && job.contentType === "pdf") {
         // Windows + PDF: delegate to SumatraPDF via pdf-to-printer.
         // Avoids the RAW datatype issue where PDF binary is sent directly
         // to the printer, causing metadata like %PDF-1.4 to be printed as text.
+        // Pass raw paper name — CUPS normalization does not apply here.
         await printPdfWithSumatraPDF(tempFile, targetPrinter.name, this.options, resolved);
       } else {
+        // Normalize paper size for CUPS / @printers/printers path
+        if (resolved) {
+          const normalized = normalizePaperName(resolved);
+          if (normalized) {
+            printOptions.paperSize = normalized;
+          }
+        }
+
+        // Build CUPS options for orientation and scaling control
+        type CUPSOptions = import("@printers/printers").CUPSOptions;
+        const cupsOptions: Partial<CUPSOptions> = {};
+
+        // Only send orientation-requested for standard paper names.
+        // Custom dimensions (e.g. "Custom.15x11in") already encode orientation
+        // via width/height, and CUPS would mis-rotate if we also set portrait.
+        const resolvedIsCustomDims = printOptions.paperSize
+          ? parsePaperDimensions(printOptions.paperSize) !== null
+          : false;
+        if (!this.options.landscape && !resolvedIsCustomDims) {
+          cupsOptions["orientation-requested"] = 3; // portrait
+        }
+        if (!this.options.fitToPage) {
+          cupsOptions["fit-to-page"] = false;
+          cupsOptions["natural-scaling"] = 100;
+        }
+
         // All other cases: use @printers/printers native printing.
         // Explicitly wait for completion before removing the temp file.
         await targetPrinter.printFile(tempFile, {

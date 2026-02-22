@@ -668,6 +668,10 @@ describe("NativePrinter", () => {
     });
 
     test("passes configured paper size directly to SumatraPDF", async () => {
+      const warnSpy = mock(() => {});
+      const origWarn = console.warn;
+      console.warn = warnSpy;
+
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         paperSize: "15x11",
@@ -682,6 +686,13 @@ describe("NativePrinter", () => {
       // Raw paper name is passed through without normalization
       const [, printOptions] = mockPrint.mock.calls[0];
       expect(printOptions.paperSize).toBe("15x11");
+
+      // CUPS normalization warning must NOT fire for Windows PDF path
+      const paperSizeWarnings = warnSpy.mock.calls.filter(
+        (args) => typeof args[0] === "string" && args[0].includes("[PaperSize]"),
+      );
+      expect(paperSizeWarnings).toHaveLength(0);
+      console.warn = origWarn;
 
       await printer.shutdown();
     });
