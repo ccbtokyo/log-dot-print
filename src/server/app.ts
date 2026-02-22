@@ -23,7 +23,9 @@ import {
   createPdfConverter,
 } from "../printers/index.js";
 import type { ImageConverter, PdfConverter } from "../printers/index.js";
+import type { ContentFitOptions } from "../printers/index.js";
 import type { LogFormatterPlugin, PrintContentType } from "../core/index.js";
+import { parsePaperDimensions } from "../printers/paper-size-resolver.js";
 import { SqliteStorage, QueuePersistenceHandler } from "../storage/index.js";
 import { HttpReceiver } from "./http-server.js";
 import { WebSocketReceiver } from "./websocket-server.js";
@@ -190,7 +192,9 @@ export class LogPrintApp {
       const conversionConfig = this.config.conversion;
       if (conversionConfig.format === "pdf") {
         console.log("[App] PDF converter enabled, initializing...");
-        this.pdfConverter = await createPdfConverter();
+        this.pdfConverter = await createPdfConverter({
+          cropToContent: conversionConfig.cropToContent,
+        });
         if (this.pdfConverter) {
           await this.pdfConverter.initialize();
           console.log("[App] PDF conversion enabled");
@@ -511,7 +515,8 @@ export class LogPrintApp {
     // Convert HTML to PDF if PDF converter is enabled
     if (this.pdfConverter && contentType === "html") {
       try {
-        const pdfBuffer = await this.pdfConverter.convert(formattedContent);
+        const pdfOptions = this.buildContentFitOptions();
+        const pdfBuffer = await this.pdfConverter.convert(formattedContent, pdfOptions);
         job.binaryContent = pdfBuffer;
         job.contentType = "pdf";
         contentType = "pdf";
@@ -553,6 +558,45 @@ export class LogPrintApp {
       accepted: true,
       id: entry.id,
       queueSize: this.printQueue.size,
+    };
+  }
+
+  /**
+   * Build contentFit options from conversion config + format config paper size.
+   * Returns undefined when content-fit is not applicable.
+   */
+  private buildContentFitOptions(): { contentFit: ContentFitOptions } | undefined {
+    const conv = this.config.conversion;
+    if (!conv || conv.format !== "pdf" || !conv.cropToContent) {
+      return undefined;
+    }
+
+    // Paper size may come from format config or stored setting
+    const fmt = this.config.format;
+    const pdfPaperSize =
+      fmt.outputFormat === "html" || fmt.outputFormat === "replay" ? fmt.pdfPaperSize : undefined;
+
+    if (!pdfPaperSize) {
+      console.warn(
+        "[App] cropToContent requires pdfPaperSize in format config; falling back to normal PDF",
+      );
+      return undefined;
+    }
+
+    const dims = parsePaperDimensions(pdfPaperSize);
+    if (!dims) {
+      console.warn(
+        `[App] cropToContent: cannot parse dimensions from "${pdfPaperSize}"; falling back to normal PDF`,
+      );
+      return undefined;
+    }
+
+    const widthIn = dims.unit === "in" ? dims.width : dims.width / 25.4;
+    const defaultMaxHeightIn = dims.unit === "in" ? dims.height : dims.height / 25.4;
+    const maxHeightIn = conv.pdfMaxHeightIn ?? defaultMaxHeightIn;
+
+    return {
+      contentFit: { widthIn, maxHeightIn },
     };
   }
 

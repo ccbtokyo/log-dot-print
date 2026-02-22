@@ -35,6 +35,30 @@ export const FALLBACK_PAPER_SIZES = [
 ];
 
 /**
+ * Build a WMI filter expression safe for embedding in a PowerShell single-quoted string.
+ * Applies two layers of escaping: WMI (double single quotes in value)
+ * then PowerShell (double all remaining single quotes).
+ * The result must be wrapped in PowerShell single quotes at the call site.
+ * Exported for unit testing.
+ */
+export function buildSafePsWmiFilter(property: string, value: string): string {
+  const wmiEscaped = value.replace(/'/g, "''");
+  const wmiFilter = `${property}='${wmiEscaped}'`;
+  return wmiFilter.replace(/'/g, "''");
+}
+
+/**
+ * Parse PowerShell Get-CimInstance output to extract paper names.
+ * Each line is a paper name. Exported for unit testing.
+ */
+export function parsePowerShellOutput(output: string): string[] {
+  return output
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
  * Parse lpoptions output to extract PageSize options.
  * Exported for unit testing.
  */
@@ -64,8 +88,21 @@ export async function getAvailablePaperSizes(
 ): Promise<PaperSizeListResult> {
   const resolvedName = printerName ?? null;
 
-  // Skip dynamic discovery on Windows
+  // Windows: use PowerShell to query printer paper sizes
   if (process.platform === "win32") {
+    try {
+      const filter = printerName ? buildSafePsWmiFilter("Name", printerName) : "Default=True";
+      const script = `Get-CimInstance Win32_Printer -Filter '${filter}' | Select-Object -ExpandProperty PrinterPaperNames`;
+      const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-Command", script], {
+        timeout: 10000,
+      });
+      const sizes = parsePowerShellOutput(stdout);
+      if (sizes.length > 0) {
+        return { paperSizes: sizes, source: "dynamic", printerName: resolvedName };
+      }
+    } catch {
+      // PowerShell not available or failed — use fallback
+    }
     return { paperSizes: FALLBACK_PAPER_SIZES, source: "fallback", printerName: resolvedName };
   }
 

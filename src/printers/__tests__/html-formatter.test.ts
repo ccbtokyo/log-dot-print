@@ -208,13 +208,14 @@ describe("HtmlFormatter", () => {
   });
 
   describe("page configuration", () => {
-    test("applies page width for PDF conversion", async () => {
+    test("does not emit @page size when only pageWidth is set (no pdfPaperSize)", async () => {
       await formatter.initialize(mockEventBus, createConfig({ pageWidth: 80 }));
       const entry = createEntry();
 
       const result = formatter.format(entry);
 
-      expect(result).toContain("80mm");
+      // @page block should not contain a size declaration when pdfPaperSize is absent
+      expect(result).not.toMatch(/@page\s*\{[^}]*\bsize:/);
     });
 
     test("uses pdfPaperSize as CSS @page size when set to standard name", async () => {
@@ -235,13 +236,14 @@ describe("HtmlFormatter", () => {
       expect(result).toContain("size: 11in 15.5in;");
     });
 
-    test("falls back to pageWidth mm when pdfPaperSize is not set", async () => {
+    test("omits @page size when pdfPaperSize is not set", async () => {
       await formatter.initialize(mockEventBus, createConfig({ pageWidth: 100 }));
       const entry = createEntry();
 
       const result = formatter.format(entry);
 
-      expect(result).toContain("size: 100mm auto;");
+      // @page block should not contain a size declaration
+      expect(result).not.toMatch(/@page\s*\{[^}]*\bsize:/);
     });
   });
 

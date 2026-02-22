@@ -84,7 +84,6 @@ export class HtmlFormatter implements LogFormatterPlugin {
     const {
       fontFamily,
       fontSize,
-      pageWidth,
       includeTimestamp,
       includeSource,
       includeLevel,
@@ -103,13 +102,11 @@ export class HtmlFormatter implements LogFormatterPlugin {
     }`
       : "";
 
-    const pageSizeValue = pdfPaperSize
-      ? paperNameToCssPageSize(pdfPaperSize)
-      : `${pageWidth}mm auto`;
+    const pageSizeRule = pdfPaperSize ? `size: ${paperNameToCssPageSize(pdfPaperSize)};` : "";
 
     const css = `
     @page {
-      size: ${pageSizeValue};
+      ${pageSizeRule}
       margin: 10mm;
     }
     * {

@@ -31,6 +31,8 @@ let previewState: PreviewState = {
 // Request IDs for race condition prevention
 let previewRequestId = 0;
 let historyRequestId = 0;
+let paperSettingsRequestId = 0;
+let paperSettingsAbortController: AbortController | null = null;
 
 // Helper function for DOM element retrieval with null check
 function getElement(id: string): HTMLElement {
@@ -118,7 +120,7 @@ const paginationHandlers: PaginationHandlers = {
   },
 };
 
-// Status bar handlers (for printer selector)
+// Status bar handlers (for printer and paper selectors)
 const statusBarCallbacks: StatusBarCallbacks = {
   onPrinterChange: async (printerName: string | null) => {
     store.setPrinterLoading(true);
@@ -127,10 +129,24 @@ const statusBarCallbacks: StatusBarCallbacks = {
       store.setCurrentPrinter(printerName);
       store.setPrinterLoading(false);
       console.log("[App] Printer changed to:", printerName ?? "(default)");
+      loadPaperSettings();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to update printer";
       store.setPrinterError(message);
       console.error("[App] Failed to change printer:", error);
+    }
+  },
+  onPaperSizeChange: async (paperSize: string | null) => {
+    store.setPaperLoading(true);
+    try {
+      await apiClient.updatePaperSettings(paperSize);
+      store.setCurrentPaperSize(paperSize);
+      store.setPaperLoading(false);
+      console.log("[App] Paper size changed to:", paperSize ?? "(default)");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update paper size";
+      store.setPaperError(message);
+      console.error("[App] Failed to change paper size:", error);
     }
   },
 };
@@ -146,6 +162,63 @@ async function loadPrinterSettings(): Promise<void> {
     const message = error instanceof Error ? error.message : "Failed to load printer settings";
     store.setPrinterError(message);
     console.error("[App] Failed to load printer settings:", error);
+  }
+}
+
+// Load paper settings
+async function loadPaperSettings(): Promise<void> {
+  // Abort any in-flight paper settings reset from a previous call
+  paperSettingsAbortController?.abort();
+  paperSettingsAbortController = new AbortController();
+  const { signal } = paperSettingsAbortController;
+
+  const requestId = ++paperSettingsRequestId;
+  store.setPaperLoading(true);
+  try {
+    const [settings, papers] = await Promise.all([
+      apiClient.getPaperSettings(),
+      apiClient.getAvailablePapers(),
+    ]);
+    if (requestId !== paperSettingsRequestId) return; // Stale request
+
+    // Reset to default if current paper size is not in the dynamic available list
+    const currentSize = settings.currentPaperSize;
+    const isDynamic = papers.source === "dynamic";
+    const isAvailable = currentSize !== null && papers.paperSizes.includes(currentSize);
+    const shouldReset = isDynamic && !isAvailable && currentSize !== null;
+
+    if (shouldReset) {
+      // Guard: abort if superseded before the side-effecting write
+      if (signal.aborted) return;
+      try {
+        await apiClient.updatePaperSettings(null);
+      } catch (err) {
+        if (signal.aborted) return; // Superseded during the await
+        console.error("[App] Failed to reset paper size on server:", err);
+        // Keep the saved value on failure to avoid UI/server divergence
+        store.setPaperSettings({
+          ...settings,
+          availablePaperSizes: papers.paperSizes,
+          source: papers.source as "dynamic" | "fallback",
+        });
+        return;
+      }
+      if (requestId !== paperSettingsRequestId) return; // Stale after await
+    }
+
+    store.setPaperSettings({
+      ...settings,
+      currentPaperSize: shouldReset ? null : currentSize,
+      isDefault: shouldReset ? true : settings.isDefault,
+      availablePaperSizes: papers.paperSizes,
+      source: papers.source as "dynamic" | "fallback",
+    });
+    console.log("[App] Paper settings loaded:", settings, papers);
+  } catch (error) {
+    if (requestId !== paperSettingsRequestId) return; // Stale request
+    const message = error instanceof Error ? error.message : "Failed to load paper settings";
+    store.setPaperError(message);
+    console.error("[App] Failed to load paper settings:", error);
   }
 }
 
@@ -304,8 +377,9 @@ function init(): void {
   // Connect WebSocket
   wsClient.connect();
 
-  // Load printer settings on init
+  // Load printer and paper settings on init
   loadPrinterSettings();
+  loadPaperSettings();
 
   console.log("[App] Initialized");
 }

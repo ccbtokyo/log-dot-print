@@ -9,6 +9,7 @@ import type {
   HistoryState,
   PaginationInfo,
   PrinterSettingsState,
+  PaperSettingsState,
 } from "../types.js";
 import type { ConnectionState } from "../services/ws-client.js";
 
@@ -20,6 +21,7 @@ export interface AppState {
   activeTab: TabType;
   history: HistoryState;
   printerSettings: PrinterSettingsState;
+  paperSettings: PaperSettingsState;
 }
 
 export type StateListener = (state: AppState) => void;
@@ -46,6 +48,15 @@ const initialPrinterSettings: PrinterSettingsState = {
   error: null,
 };
 
+const initialPaperSettings: PaperSettingsState = {
+  currentPaperSize: null,
+  availablePaperSizes: [],
+  source: "fallback",
+  isDefault: true,
+  isLoading: false,
+  error: null,
+};
+
 export class Store {
   private state: AppState = {
     queue: initialQueueState,
@@ -55,6 +66,7 @@ export class Store {
     activeTab: "queue",
     history: initialHistoryState,
     printerSettings: initialPrinterSettings,
+    paperSettings: initialPaperSettings,
   };
 
   private listeners = new Set<StateListener>();
@@ -163,6 +175,39 @@ export class Store {
         ...this.state.printerSettings,
         currentPrinter: printerName,
         isDefault: printerName === null,
+      },
+    };
+    this.notify();
+  }
+
+  setPaperSettings(paperSettings: PaperSettingsState): void {
+    this.state = { ...this.state, paperSettings };
+    this.notify();
+  }
+
+  setPaperLoading(isLoading: boolean): void {
+    this.state = {
+      ...this.state,
+      paperSettings: { ...this.state.paperSettings, isLoading },
+    };
+    this.notify();
+  }
+
+  setPaperError(error: string | null): void {
+    this.state = {
+      ...this.state,
+      paperSettings: { ...this.state.paperSettings, error, isLoading: false },
+    };
+    this.notify();
+  }
+
+  setCurrentPaperSize(paperSize: string | null): void {
+    this.state = {
+      ...this.state,
+      paperSettings: {
+        ...this.state.paperSettings,
+        currentPaperSize: paperSize,
+        isDefault: paperSize === null,
       },
     };
     this.notify();

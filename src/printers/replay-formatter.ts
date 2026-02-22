@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: Required<
 } = {
   outputFormat: "replay",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  fontSize: 28,
+  fontSize: 11,
   pageWidth: 80,
   sideMargin: 10,
   npcColor: "#333",
@@ -108,26 +108,13 @@ export class ReplayFormatter implements LogFormatterPlugin {
    * Render chat messages as HTML
    */
   private renderGameplayHtml(payload: GameplayPayload): string {
-    const {
-      fontFamily,
-      fontSize,
-      pageWidth,
-      sideMargin,
-      npcColor,
-      playerColor,
-      fontPath,
-      pdfPaperSize,
-    } = this.config;
+    const { fontFamily, fontSize, sideMargin, npcColor, playerColor, fontPath, pdfPaperSize } =
+      this.config;
 
     const safeFontFamily = this.sanitizeFontFamilyList(fontFamily);
     const safeFontSize = this.sanitizeNumber(fontSize, DEFAULT_CONFIG.fontSize, {
       min: 8,
       max: 512,
-      integer: true,
-    });
-    const safePageWidth = this.sanitizeNumber(pageWidth, DEFAULT_CONFIG.pageWidth, {
-      min: 10,
-      max: 300,
       integer: true,
     });
     const safeSideMargin = this.sanitizeNumber(sideMargin, DEFAULT_CONFIG.sideMargin, {
@@ -150,21 +137,19 @@ export class ReplayFormatter implements LogFormatterPlugin {
     }`
       : "";
 
-    const pageSizeValue = pdfPaperSize
-      ? paperNameToCssPageSize(pdfPaperSize)
-      : `${safePageWidth}mm auto`;
+    const pageSizeRule = pdfPaperSize ? `size: ${paperNameToCssPageSize(pdfPaperSize)};` : "";
 
     const css = `
     @page {
-      size: ${pageSizeValue};
-      margin: 10mm ${safeSideMargin}mm;
+      ${pageSizeRule}
+      margin: 10mm 0;
     }
     * {
       box-sizing: border-box;
     }
     body {
       font-family: ${safeFontFamily};
-      font-size: ${safeFontSize}px;
+      font-size: ${safeFontSize}pt;
       line-height: 1.6;
       margin: 0;
       padding: 20px ${safeSideMargin}mm;
@@ -198,8 +183,8 @@ export class ReplayFormatter implements LogFormatterPlugin {
       max-width: 100%;
     }
     .message {
-      margin-bottom: 16px;
-      padding: 8px 0;
+      margin-bottom: 4px;
+      padding: 2px 0;
       max-width: 50%;
     }
     .message.npc {
@@ -239,7 +224,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
               entry.role === "player"
                 ? this.escapeHtml(playerNickname)
                 : this.escapeHtml(npcNickname);
-            const content = `[${speaker}] ${this.escapeHtml(entry.text)}`;
+            const content = `${speaker}: ${this.escapeHtml(entry.text)}`;
             return `\n    <div class="message ${typeClass}">${content}</div>`;
           })
           .join("");
@@ -284,7 +269,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
   <style>
     body {
       font-family: ${safeFontFamily};
-      font-size: ${safeFontSize}px;
+      font-size: ${safeFontSize}pt;
       margin: 0;
       padding: 20px;
       color: #333;

@@ -103,12 +103,16 @@ body {
   color: var(--color-warning);
 }
 
-/* Printer Selector in Status Bar */
+/* Printer & Paper Selectors in Status Bar */
 .status-item.printer-selector {
   margin-left: auto;
 }
 
-.printer-select {
+.status-item.paper-selector {
+}
+
+.printer-select,
+.paper-select {
   background: var(--color-border);
   color: var(--color-text);
   border: 1px solid var(--color-border);
@@ -122,22 +126,26 @@ body {
   text-overflow: ellipsis;
 }
 
-.printer-select:hover:not(:disabled) {
+.printer-select:hover:not(:disabled),
+.paper-select:hover:not(:disabled) {
   border-color: var(--color-primary);
 }
 
-.printer-select:focus {
+.printer-select:focus,
+.paper-select:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.3);
 }
 
-.printer-select:disabled {
+.printer-select:disabled,
+.paper-select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.printer-select option {
+.printer-select option,
+.paper-select option {
   background: var(--color-surface);
   color: var(--color-text);
 }

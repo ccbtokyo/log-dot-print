@@ -41,6 +41,76 @@ describe("paper-discovery", () => {
     });
   });
 
+  describe("buildSafePsWmiFilter", () => {
+    let buildSafePsWmiFilter: (property: string, value: string) => string;
+
+    beforeEach(async () => {
+      const mod = await import("../paper-discovery.js");
+      buildSafePsWmiFilter = mod.buildSafePsWmiFilter;
+    });
+
+    test("builds filter for simple printer name", () => {
+      const result = buildSafePsWmiFilter("Name", "EPSON");
+      // PowerShell single-quoted: Name=''EPSON''
+      expect(result).toBe("Name=''EPSON''");
+    });
+
+    test("escapes single quotes in printer name for WMI and PowerShell", () => {
+      const result = buildSafePsWmiFilter("Name", "O'Brien");
+      // WMI: Name='O''Brien' → PS single-quote escape: Name=''O''''Brien''
+      expect(result).toBe("Name=''O''''Brien''");
+    });
+
+    test("does not expand PowerShell variables in printer name", () => {
+      const result = buildSafePsWmiFilter("Name", "Printer$(evil)");
+      // The $() should be preserved as literal text (no expansion in PS single quotes)
+      expect(result).toBe("Name=''Printer$(evil)''");
+    });
+
+    test("does not interpret PowerShell backtick in printer name", () => {
+      const result = buildSafePsWmiFilter("Name", "Printer`nTest");
+      expect(result).toBe("Name=''Printer`nTest''");
+    });
+  });
+
+  describe("parsePowerShellOutput", () => {
+    let parsePowerShellOutput: (output: string) => string[];
+
+    beforeEach(async () => {
+      const mod = await import("../paper-discovery.js");
+      parsePowerShellOutput = mod.parsePowerShellOutput;
+    });
+
+    test("parses multiple lines of paper names", () => {
+      const output = "A4\nLetter\nLegal\nB5";
+      const result = parsePowerShellOutput(output);
+      expect(result).toEqual(["A4", "Letter", "Legal", "B5"]);
+    });
+
+    test("filters empty lines", () => {
+      const output = "A4\n\nLetter\n\n\nLegal\n";
+      const result = parsePowerShellOutput(output);
+      expect(result).toEqual(["A4", "Letter", "Legal"]);
+    });
+
+    test("returns empty array for empty string", () => {
+      const result = parsePowerShellOutput("");
+      expect(result).toEqual([]);
+    });
+
+    test("trims leading and trailing whitespace from each line", () => {
+      const output = "  A4  \n  Letter \n\tLegal\t";
+      const result = parsePowerShellOutput(output);
+      expect(result).toEqual(["A4", "Letter", "Legal"]);
+    });
+
+    test("handles CRLF line endings", () => {
+      const output = "A4\r\nLetter\r\nLegal\r\n";
+      const result = parsePowerShellOutput(output);
+      expect(result).toEqual(["A4", "Letter", "Legal"]);
+    });
+  });
+
   describe("parseLpoptionsOutput", () => {
     // Imported separately for unit testing the parser
     let parseLpoptionsOutput: (output: string) => string[];

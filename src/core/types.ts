@@ -246,6 +246,10 @@ export interface ImageConversionConfig {
   width?: number;
   /** Whether to convert to grayscale for dot impact printers. Ignored for pdf. */
   grayscale?: boolean;
+  /** Crop PDF height to fit content dynamically. Only applies when format is "pdf". */
+  cropToContent?: boolean;
+  /** Maximum PDF height in inches when cropToContent is enabled (default: paper height from pdfPaperSize) */
+  pdfMaxHeightIn?: number;
 }
 
 /**

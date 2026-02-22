@@ -3,6 +3,7 @@ import {
   resolvePaperSize,
   normalizePaperName,
   paperNameToCssPageSize,
+  parsePaperDimensions,
 } from "../paper-size-resolver.js";
 
 describe("resolvePaperSize", () => {
@@ -132,5 +133,41 @@ describe("paperNameToCssPageSize", () => {
   test("converts Custom mm format to CSS dimensions", () => {
     expect(paperNameToCssPageSize("Custom.210x297mm")).toBe("210mm 297mm");
     expect(paperNameToCssPageSize("Custom.80x200mm")).toBe("80mm 200mm");
+  });
+});
+
+describe("parsePaperDimensions", () => {
+  test("parses Custom inch format", () => {
+    expect(parsePaperDimensions("Custom.15x11in")).toEqual({
+      width: 15,
+      height: 11,
+      unit: "in",
+    });
+  });
+
+  test("parses Custom mm format", () => {
+    expect(parsePaperDimensions("Custom.210x297mm")).toEqual({
+      width: 210,
+      height: 297,
+      unit: "mm",
+    });
+  });
+
+  test("parses decimal dimensions", () => {
+    expect(parsePaperDimensions("Custom.8.5x11in")).toEqual({
+      width: 8.5,
+      height: 11,
+      unit: "in",
+    });
+  });
+
+  test("returns null for standard paper sizes", () => {
+    expect(parsePaperDimensions("A4")).toBeNull();
+    expect(parsePaperDimensions("Letter")).toBeNull();
+  });
+
+  test("returns null for invalid format", () => {
+    expect(parsePaperDimensions("")).toBeNull();
+    expect(parsePaperDimensions("FooBar")).toBeNull();
   });
 });

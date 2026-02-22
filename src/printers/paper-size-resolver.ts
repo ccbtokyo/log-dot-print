@@ -94,6 +94,32 @@ export function normalizePaperName(name: string): string | null {
 }
 
 /**
+ * Parsed dimensions from a Custom paper size.
+ */
+export interface PaperDimensions {
+  width: number;
+  height: number;
+  unit: "in" | "mm";
+}
+
+/**
+ * Parse a Custom paper size name into width, height, and unit.
+ * Returns null for standard sizes or invalid formats.
+ *
+ * @example parsePaperDimensions("Custom.15x11in") → { width: 15, height: 11, unit: "in" }
+ */
+export function parsePaperDimensions(name: string): PaperDimensions | null {
+  const match = CUSTOM_RE.exec(name);
+  if (!match) return null;
+  const [, width, height, unit] = match;
+  return {
+    width: parseFloat(width),
+    height: parseFloat(height),
+    unit: unit as "in" | "mm",
+  };
+}
+
+/**
  * Convert a paper size name to a CSS `@page { size: ... }` value.
  * - Standard names → returned as-is (browsers/weasyprint understand them)
  * - Custom.WxHin → "Win Hin" (e.g. "11in 15.5in")

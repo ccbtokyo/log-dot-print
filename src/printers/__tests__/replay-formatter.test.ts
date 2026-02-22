@@ -181,28 +181,30 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("こんにちは");
     });
 
-    test("NPC messages display npc.nickname as speaker", async () => {
+    test("NPC messages display npc.nickname as speaker with colon separator", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      // NPC message should show NPC nickname
+      // NPC message should show "nickname: text" without brackets
       const npcMessageMatch = html.match(/class="message npc"[^>]*>([^<]*(?:<[^>]*>[^<]*)*)/);
       expect(npcMessageMatch).not.toBeNull();
-      expect(npcMessageMatch![0]).toContain("sho");
+      expect(npcMessageMatch![0]).toContain("sho: ");
+      expect(npcMessageMatch![0]).not.toContain("[sho]");
     });
 
-    test("Player messages display respawn.nickname as speaker", async () => {
+    test("Player messages display respawn.nickname as speaker with colon separator", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      // Player message should show respawn nickname
+      // Player message should show "nickname: text" without brackets
       const playerMessageMatch = html.match(/class="message player"[^>]*>([^<]*(?:<[^>]*>[^<]*)*)/);
       expect(playerMessageMatch).not.toBeNull();
-      expect(playerMessageMatch![0]).toContain("Toshi");
+      expect(playerMessageMatch![0]).toContain("Toshi: ");
+      expect(playerMessageMatch![0]).not.toContain("[Toshi]");
     });
 
     test("renders multiple messages in order", async () => {
@@ -483,16 +485,17 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("18px");
+      expect(html).toContain("18pt");
     });
 
-    test("applies custom page width", async () => {
+    test("does not emit @page size when only pageWidth is set (no pdfPaperSize)", async () => {
       await formatter.initialize(eventBus, createConfig({ pageWidth: 80 }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("80mm");
+      // @page block should not contain a size declaration when pdfPaperSize is absent
+      expect(html).not.toMatch(/@page\s*\{[^}]*\bsize:/);
     });
 
     test("uses pdfPaperSize as CSS @page size when set to standard name", async () => {
@@ -513,13 +516,14 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("size: 11in 15.5in;");
     });
 
-    test("falls back to pageWidth mm when pdfPaperSize is not set", async () => {
+    test("omits @page size when pdfPaperSize is not set", async () => {
       await formatter.initialize(eventBus, createConfig({ pageWidth: 100 }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("size: 100mm auto;");
+      // @page block should not contain a size declaration
+      expect(html).not.toMatch(/@page\s*\{[^}]*\bsize:/);
     });
 
     test("applies custom font path with @font-face", async () => {
@@ -615,8 +619,10 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("28px");
-      expect(html).toContain("80mm");
+      expect(html).toContain("11pt");
+      // pageWidth is no longer used in @page size (only pdfPaperSize drives that)
+      // but sideMargin default (10mm) should still appear in margin/padding
+      expect(html).toContain("10mm");
     });
 
     test("falls back to default colors for empty strings", async () => {

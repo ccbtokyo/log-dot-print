@@ -9,8 +9,10 @@
  * @related src/printers/native.ts (NativePrinter)
  * @related src/printers/replay-formatter.ts (ReplayFormatter)
  * @related src/core/types.ts (ImageConversionConfig)
- * @related src/printers/paper-size-resolver.ts (paperNameToCssPageSize)
+ * @related src/printers/paper-size-resolver.ts (paperNameToCssPageSize, parsePaperDimensions)
  */
+
+import { parsePaperDimensions } from "../paper-size-resolver.js";
 
 // Playwright types (dynamic import - playwright is optional)
 type Browser = {
@@ -20,6 +22,7 @@ type Browser = {
 
 type Page = {
   setContent(html: string, options?: { waitUntil?: string }): Promise<void>;
+  setViewportSize(size: { width: number; height: number }): Promise<void>;
   evaluate<T>(fn: () => T): Promise<T>;
   pdf(options?: Record<string, unknown>): Promise<Buffer>;
   close(): Promise<void>;
@@ -56,16 +59,45 @@ async function loadPlaywrightModule(): Promise<PlaywrightModule> {
 }
 
 /**
+ * Content-fit options for dynamic PDF height based on content measurement.
+ * Used for continuous paper (fan-fold) printing where paper waste should be minimized.
+ */
+export interface ContentFitOptions {
+  /** Paper width in inches */
+  widthIn: number;
+  /** Maximum page height in inches (default: 11) */
+  maxHeightIn?: number;
+}
+
+/**
  * Options for PDF conversion
  */
 export interface PdfConverterOptions {
   /** Paper size for PDF output (default: "A4") */
   paperSize?: string;
+  /** Crop PDF height to fit content (default: false). Only works with Custom paper sizes. */
+  cropToContent?: boolean;
+  /** Content-fit mode: measure content height and generate a dynamically-sized PDF */
+  contentFit?: ContentFitOptions;
 }
 
-const DEFAULT_OPTIONS: Required<PdfConverterOptions> = {
+const DEFAULT_OPTIONS: Required<Omit<PdfConverterOptions, "contentFit">> = {
   paperSize: "A4",
+  cropToContent: false,
 };
+
+/** CSS pixels per inch (Chromium default) */
+const CSS_PX_PER_INCH = 96;
+
+/** mm per inch */
+const MM_PER_INCH = 25.4;
+
+/**
+ * Convert a CSS length value to pixels at 96 DPI.
+ */
+export function cssUnitToPixels(value: number, unit: "in" | "mm"): number {
+  return unit === "in" ? value * CSS_PX_PER_INCH : (value / MM_PER_INCH) * CSS_PX_PER_INCH;
+}
 
 /**
  * HTML to PDF converter using Playwright
@@ -75,12 +107,13 @@ const DEFAULT_OPTIONS: Required<PdfConverterOptions> = {
  */
 export class PdfConverter {
   private browser: Browser | null = null;
-  private options: Required<PdfConverterOptions>;
+  private options: Required<Omit<PdfConverterOptions, "contentFit">>;
   private initPromise: Promise<void> | null = null;
 
   constructor(options: Partial<PdfConverterOptions> = {}) {
     this.options = {
       paperSize: options.paperSize ?? DEFAULT_OPTIONS.paperSize,
+      cropToContent: options.cropToContent ?? DEFAULT_OPTIONS.cropToContent,
     };
   }
 
@@ -155,6 +188,7 @@ export class PdfConverter {
    */
   async convert(html: string, options?: Partial<PdfConverterOptions>): Promise<Buffer> {
     const paperSize = options?.paperSize ?? this.options.paperSize;
+    const cropToContent = options?.cropToContent ?? this.options.cropToContent;
 
     if (!this.browser) {
       await this.initialize();
@@ -164,9 +198,21 @@ export class PdfConverter {
       throw new Error("Browser not initialized");
     }
 
+    // Content-fit mode: measure content and generate dynamically-sized PDF
+    if (options?.contentFit) {
+      return this.convertContentFit(html, options.contentFit);
+    }
+
     let page: Page | null = null;
     try {
       page = await this.browser.newPage();
+
+      // For cropToContent, set viewport width to match paper width for accurate measurement
+      const dims = parsePaperDimensions(paperSize);
+      if (cropToContent && dims) {
+        const widthPx = Math.round(cssUnitToPixels(dims.width, dims.unit));
+        await page.setViewportSize({ width: widthPx, height: 800 });
+      }
 
       // Load HTML content
       await page.setContent(html, {
@@ -176,7 +222,38 @@ export class PdfConverter {
       // Wait for fonts to load (runs in browser context)
       await page.evaluate(() => (globalThis as any).document.fonts.ready);
 
-      // Generate PDF: prefer @page CSS from formatter, fall back to paperSize option
+      // Crop mode: measure content height and use dynamic page height
+      if (cropToContent && dims) {
+        const contentHeightPx = await page.evaluate(
+          () => (globalThis as any).document.body.scrollHeight as number,
+        );
+
+        // Convert content height to the paper unit
+        const contentHeight =
+          dims.unit === "in"
+            ? contentHeightPx / CSS_PX_PER_INCH
+            : (contentHeightPx / CSS_PX_PER_INCH) * MM_PER_INCH;
+
+        // Add estimated @page margin buffer (top + bottom ≈ 20mm ≈ 0.79in)
+        const marginBuffer = dims.unit === "in" ? 0.79 : 20;
+        const finalHeight = contentHeight + marginBuffer;
+
+        console.log(
+          `[PdfConverter] cropToContent: content=${contentHeight.toFixed(2)}${dims.unit}, ` +
+            `final=${finalHeight.toFixed(2)}${dims.unit}`,
+        );
+
+        const pdfBuffer = await page.pdf({
+          width: `${dims.width}${dims.unit}`,
+          height: `${finalHeight}${dims.unit}`,
+          preferCSSPageSize: false,
+          printBackground: true,
+        });
+
+        return Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+      }
+
+      // Normal mode: prefer @page CSS from formatter, fall back to paperSize option
       const pdfBuffer = await page.pdf({
         format: paperSize,
         preferCSSPageSize: true,
@@ -188,6 +265,50 @@ export class PdfConverter {
       if (page) {
         await page.close();
       }
+    }
+  }
+
+  /**
+   * Generate a dynamically-sized PDF whose height matches content.
+   * Uses zero @page margin (the HTML `body { padding }` provides visual margin)
+   * and measures scrollHeight to determine the exact page height needed.
+   */
+  private async convertContentFit(html: string, contentFit: ContentFitOptions): Promise<Buffer> {
+    const widthPx = Math.round(contentFit.widthIn * CSS_PX_PER_INCH);
+    const maxHeightIn = contentFit.maxHeightIn ?? 11;
+
+    const page = await this.browser!.newPage();
+    try {
+      // Use a minimal viewport height so scrollHeight reports actual content height
+      // (scrollHeight >= viewport height, so a large viewport masks small content)
+      await page.setViewportSize({ width: widthPx, height: 1 });
+
+      await page.setContent(html, { waitUntil: "networkidle" });
+      await page.evaluate(() => (globalThis as any).document.fonts.ready);
+
+      const scrollHeightPx = await page.evaluate(
+        () => (globalThis as any).document.documentElement.scrollHeight as number,
+      );
+
+      const contentHeightIn = scrollHeightPx / CSS_PX_PER_INCH;
+      const finalHeightIn = Math.max(Math.min(contentHeightIn, maxHeightIn), 0.1);
+
+      console.log(
+        `[PdfConverter] contentFit: scroll=${scrollHeightPx}px, ` +
+          `content=${contentHeightIn.toFixed(2)}in, final=${finalHeightIn.toFixed(2)}in`,
+      );
+
+      const pdfBuffer = await page.pdf({
+        width: `${contentFit.widthIn}in`,
+        height: `${finalHeightIn}in`,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+        preferCSSPageSize: false,
+        printBackground: true,
+      });
+
+      return Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+    } finally {
+      await page.close();
     }
   }
 
