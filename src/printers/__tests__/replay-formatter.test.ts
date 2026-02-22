@@ -32,6 +32,10 @@ describe("ReplayFormatter", () => {
       nickname: "Toshi",
       age: "40s",
       gender: "male",
+      complaint_troubles: "仕事のストレス",
+      confession_true_feelings: "本当は休みたい",
+      rediscovering_relief: "散歩で気分転換",
+      convai_backstory: "東京出身のサラリーマン",
     },
     ...overrides,
   });
@@ -95,33 +99,207 @@ describe("ReplayFormatter", () => {
     });
   });
 
-  describe("header rendering", () => {
-    test("displays respawn nickname in header", async () => {
+  describe("footer rendering", () => {
+    test("does not render player-header", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
+      expect(html).not.toContain('class="player-header"');
+    });
+
+    test("renders player-footer after dialogue sections", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain('class="player-footer"');
+      // Footer element appears after last dialogue message
+      const lastMessagePos = html.lastIndexOf('class="message');
+      const footerPos = html.indexOf('class="player-footer"');
+      expect(footerPos).toBeGreaterThan(lastMessagePos);
+    });
+
+    test("renders bilingual nickname label", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("名前 / Nickname");
       expect(html).toContain("Toshi");
-      expect(html).toContain("player-header");
     });
 
-    test("displays respawn age in header", async () => {
+    test("renders bilingual age label with localized value", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("40s");
+      expect(html).toContain("年代 / Age Group");
+      expect(html).toContain("40s （40代）");
     });
 
-    test("displays respawn gender in header", async () => {
+    test("renders bilingual gender label with localized value", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("male");
+      expect(html).toContain("性別 / Gender");
+      expect(html).toContain("male（男性）");
+    });
+
+    test("renders optional fields when provided", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("悩み・葛藤 / Complaints &amp; Troubles");
+      expect(html).toContain("仕事のストレス");
+      expect(html).toContain("本音 / True Feelings");
+      expect(html).toContain("本当は休みたい");
+      expect(html).toContain("心の変化 / Rediscovering Relief");
+      expect(html).toContain("散歩で気分転換");
+      expect(html).toContain("背景設定 / Backstory");
+      expect(html).toContain("東京出身のサラリーマン");
+    });
+
+    test("omits optional fields when absent", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        respawn: {
+          nickname: "Toshi",
+          age: "40s",
+          gender: "male",
+        },
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("名前 / Nickname");
+      expect(html).toContain("年代 / Age Group");
+      expect(html).toContain("性別 / Gender");
+      expect(html).not.toContain("悩み・葛藤");
+      expect(html).not.toContain("本音 / True Feelings");
+      expect(html).not.toContain("心の変化");
+      expect(html).not.toContain("背景設定");
+    });
+
+    test("omits optional fields when empty string", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        respawn: {
+          nickname: "Toshi",
+          age: "40s",
+          gender: "male",
+          complaint_troubles: "",
+          confession_true_feelings: "  ",
+          rediscovering_relief: "",
+          convai_backstory: "",
+        },
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain("悩み・葛藤");
+      expect(html).not.toContain("本音 / True Feelings");
+      expect(html).not.toContain("心の変化");
+      expect(html).not.toContain("背景設定");
+    });
+
+    test("does not render footer when respawn is missing", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: [
+            {
+              npc: { replay_id: "r1", nickname: "sho" },
+              dialogue: [{ role: "npc", text: "Hello" }],
+            },
+          ],
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain('class="player-footer"');
+    });
+  });
+
+  describe("age/gender localization", () => {
+    test("localizes age decades to Japanese", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const ages = [
+        { input: "20s", expected: "20s （20代）" },
+        { input: "30s", expected: "30s （30代）" },
+        { input: "40s", expected: "40s （40代）" },
+        { input: "50s", expected: "50s （50代）" },
+        { input: "60s", expected: "60s （60代）" },
+      ];
+
+      for (const { input, expected } of ages) {
+        const payload = createPayload({
+          respawn: { nickname: "X", age: input, gender: "male" },
+        });
+        const entry = createLogEntry(JSON.stringify(payload));
+        const html = formatter.format(entry);
+
+        expect(html).toContain(expected);
+      }
+    });
+
+    test("renders unknown age value as-is", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        respawn: { nickname: "X", age: "unknown", gender: "male" },
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("unknown");
+      expect(html).not.toContain("代）");
+    });
+
+    test("localizes known genders to Japanese", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const genders = [
+        { input: "male", expected: "male（男性）" },
+        { input: "female", expected: "female（女性）" },
+        { input: "other", expected: "other（その他）" },
+      ];
+
+      for (const { input, expected } of genders) {
+        const payload = createPayload({
+          respawn: { nickname: "X", age: "20s", gender: input },
+        });
+        const entry = createLogEntry(JSON.stringify(payload));
+        const html = formatter.format(entry);
+
+        expect(html).toContain(expected);
+      }
+    });
+
+    test("renders unknown gender value as-is", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        respawn: { nickname: "X", age: "20s", gender: "non-binary" },
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).toContain("non-binary");
+      // Gender should not have Japanese parenthetical
+      expect(html).not.toContain("non-binary（");
     });
   });
 
@@ -267,7 +445,7 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("&lt;script&gt;");
     });
 
-    test("escapes HTML in respawn nickname", async () => {
+    test("escapes HTML in respawn nickname in footer", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const payload = createPayload({
@@ -281,6 +459,29 @@ describe("ReplayFormatter", () => {
       const html = formatter.format(entry);
 
       expect(html).not.toContain("<img");
+      expect(html).toContain("&lt;img");
+    });
+
+    test("escapes HTML in optional footer fields", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        respawn: {
+          nickname: "Safe",
+          age: "30s",
+          gender: "female",
+          complaint_troubles: "<script>alert('xss')</script>",
+          confession_true_feelings: '<img src=x onerror="alert(1)">',
+          convai_backstory: '<div onclick="steal()">evil</div>',
+        },
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain("<script>");
+      expect(html).not.toContain("<img");
+      expect(html).not.toContain("<div onclick");
+      expect(html).toContain("&lt;script&gt;");
       expect(html).toContain("&lt;img");
     });
 

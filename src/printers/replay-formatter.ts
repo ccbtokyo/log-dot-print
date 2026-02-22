@@ -155,18 +155,23 @@ export class ReplayFormatter implements LogFormatterPlugin {
       padding: 20px ${safeSideMargin}mm;
       background: #fff;
     }
-    .player-header {
-      margin-bottom: 24px;
-      padding-bottom: 12px;
-      border-bottom: 2px solid #ccc;
+    .player-footer {
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 2px solid #ccc;
     }
-    .player-header .nickname {
-      font-size: 1.2em;
+    .player-footer .attr-block {
+      margin-bottom: 12px;
+    }
+    .player-footer .attr-label {
       font-weight: bold;
-    }
-    .player-header .meta {
-      color: #666;
       font-size: 0.9em;
+      color: #666;
+      margin-bottom: 2px;
+    }
+    .player-footer .attr-value {
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
     .npc-section-header {
       font-weight: bold;
@@ -201,13 +206,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const respawn: GameplayRespawnInfo | undefined = payload.respawn;
     const playerNickname = respawn?.nickname ?? "Player";
 
-    const headerHtml = respawn
-      ? `
-    <div class="player-header">
-      <div class="nickname">${this.escapeHtml(respawn.nickname)}</div>
-      <div class="meta">${this.escapeHtml(respawn.age)} / ${this.escapeHtml(respawn.gender)}</div>
-    </div>`
-      : "";
+    const footerHtml = respawn ? this.renderFooterHtml(respawn) : "";
 
     const sectionsHtml = payload.gameplay
       .map((conv: GameplayConversation, index: number) => {
@@ -242,7 +241,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
   <style>${fontFaceRule}${css}</style>
 </head>
 <body>
-  <div class="chat-container">${headerHtml}${sectionsHtml}
+  <div class="chat-container">${sectionsHtml}${footerHtml}
   </div>
 </body>
 </html>`;
@@ -294,6 +293,67 @@ export class ReplayFormatter implements LogFormatterPlugin {
   </div>
 </body>
 </html>`;
+  }
+
+  private renderFooterHtml(respawn: GameplayRespawnInfo): string {
+    const blocks: string[] = [];
+
+    blocks.push(this.renderAttrBlock("名前 / Nickname", this.escapeHtml(respawn.nickname)));
+    blocks.push(
+      this.renderAttrBlock("年代 / Age Group", this.escapeHtml(this.localizeAge(respawn.age))),
+    );
+    blocks.push(
+      this.renderAttrBlock("性別 / Gender", this.escapeHtml(this.localizeGender(respawn.gender))),
+    );
+
+    const optionalFields: Array<{ label: string; value: string | undefined }> = [
+      { label: "悩み・葛藤 / Complaints &amp; Troubles", value: respawn.complaint_troubles },
+      { label: "本音 / True Feelings", value: respawn.confession_true_feelings },
+      { label: "心の変化 / Rediscovering Relief", value: respawn.rediscovering_relief },
+      { label: "背景設定 / Backstory", value: respawn.convai_backstory },
+    ];
+
+    for (const field of optionalFields) {
+      const text = this.toSafeText(field.value).trim();
+      if (text.length > 0) {
+        blocks.push(this.renderAttrBlock(field.label, this.escapeHtml(text)));
+      }
+    }
+
+    return `
+    <div class="player-footer">${blocks.join("")}
+    </div>`;
+  }
+
+  private renderAttrBlock(label: string, escapedValue: string): string {
+    return `
+      <div class="attr-block">
+        <div class="attr-label">${label}</div>
+        <div class="attr-value">${escapedValue}</div>
+      </div>`;
+  }
+
+  private localizeAge(age: string): string {
+    const safeAge = this.toSafeText(age);
+    const match = safeAge.match(/^(\d+)s$/);
+    if (match) {
+      return `${safeAge} （${match[1]}代）`;
+    }
+    return safeAge;
+  }
+
+  private localizeGender(gender: string): string {
+    const safeGender = this.toSafeText(gender);
+    const map: Record<string, string> = {
+      male: "男性",
+      female: "女性",
+      other: "その他",
+    };
+    const japanese = map[safeGender.toLowerCase()];
+    if (japanese) {
+      return `${safeGender}（${japanese}）`;
+    }
+    return safeGender;
   }
 
   /**
