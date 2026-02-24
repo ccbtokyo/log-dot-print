@@ -38,6 +38,10 @@ coverage/
 # Runtime data
 data/
 
+# Deploy artifacts (generated at install time)
+deploy/windows/winsw/*.exe
+deploy/windows/winsw/log-dot-print-service.xml
+
 # Tool internals
 .serena/
 .claude/homunculus/

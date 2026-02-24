@@ -16,7 +16,7 @@
     "debug:bins": "bun scripts/debug-windows-printers.ts bins",
     "dev": "bun scripts/dev.ts",
     "dev:ui": "bun build src/ui/main.ts --outdir=dist/ui --format=esm --watch",
-    "start": "node dist/cli.js",
+    "start": "bun dist/cli.js",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "post": "bun scripts/post.ts",

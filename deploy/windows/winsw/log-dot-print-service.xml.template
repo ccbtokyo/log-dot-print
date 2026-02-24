@@ -1,0 +1,30 @@
+<service>
+  <id>LogDotPrint</id>
+  <name>Log-Dot-Print</name>
+  <description>AI Log Printer System for Art Installations</description>
+  <executable>{{BUN_PATH}}</executable>
+  <arguments>dist/cli.js</arguments>
+  <workingdirectory>{{PROJECT_ROOT}}</workingdirectory>
+
+  <!-- Log rotation: 10MB x 8 files -->
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+    <logpath>{{PROJECT_ROOT}}\logs</logpath>
+  </log>
+
+  <!-- Auto-restart on crash: 10s -> 30s -> 60s -->
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <onfailure action="restart" delay="60 sec" />
+  <resetfailure>1 hour</resetfailure>
+
+  <!-- Delayed auto-start on OS boot -->
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <env name="NODE_ENV" value="production" />
+
+  <priority>AboveNormal</priority>
+  <stoptimeout>30 sec</stoptimeout>
+</service>
