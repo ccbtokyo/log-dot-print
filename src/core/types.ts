@@ -191,15 +191,18 @@ export interface GameplayRespawnInfo {
   convai_backstory?: string;
 }
 
+/** gameplay 内の NPC 会話ブロック */
+export interface GameplayConversation {
+  npc: GameplayNpcInfo;
+  dialogue: GameplayDialogueEntry[];
+}
+
 /**
- * gameplay ペイロード — 1 回の送信単位
- * - 会話: { npc, dialogue }
- * - 会話 + respawn: { npc, dialogue, respawn }
- * - respawn のみ: { respawn }
+ * gameplay ペイロード — 1 回のゲームプレイ送信単位
+ * { gameplay: [{ npc, dialogue }, ...], respawn? }
  */
 export interface GameplayPayload {
-  npc?: GameplayNpcInfo;
-  dialogue?: GameplayDialogueEntry[];
+  gameplay: GameplayConversation[];
   respawn?: GameplayRespawnInfo;
 }
 

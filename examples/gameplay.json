@@ -1,16 +1,26 @@
 {
-  "data": {
-    "npc": { "replay_id": "r1", "nickname": "sho" },
-    "dialogue": [
-      { "role": "player", "text": "こんにちは" },
-      { "role": "npc", "text": "こんにちは！元気ですか？" },
-      { "role": "player", "text": "元気です。今日はいい天気ですね。" },
-      { "role": "npc", "text": "そうですね。散歩にでも行きましょうか。" }
-    ],
-    "respawn": {
-      "nickname": "Toshi",
-      "age": "40s",
-      "gender": "male"
+  "gameplay": [
+    {
+      "npc": { "replay_id": "r1", "nickname": "sho" },
+      "dialogue": [
+        { "role": "player", "text": "こんにちは" },
+        { "role": "npc", "text": "こんにちは！元気ですか？" },
+        { "role": "player", "text": "元気です。今日はいい天気ですね。" },
+        { "role": "npc", "text": "そうですね。散歩にでも行きましょうか。" }
+      ]
+    },
+    {
+      "npc": { "replay_id": "r2", "nickname": "The Uncle" },
+      "dialogue": [
+        { "role": "npc", "text": "おう、久しぶりだな。" },
+        { "role": "player", "text": "お久しぶりです。" },
+        { "role": "npc", "text": "最近どうしてるんだ？" }
+      ]
     }
+  ],
+  "respawn": {
+    "nickname": "Toshi",
+    "age": "40s",
+    "gender": "male"
   }
 }

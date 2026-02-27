@@ -7,7 +7,7 @@ import type {
   TypedEventEmitter,
   ReplayFormatConfig,
   PrintContentType,
-  GameplayPayload,
+  GameplayConversation,
   GameplayRespawnInfo,
 } from "../core/index.js";
 import { paperNameToCssPageSize } from "./paper-size-resolver.js";
@@ -34,14 +34,12 @@ const DEFAULT_CONFIG: Required<
 };
 
 /**
- * Re:play formatter for gameplay conversation visualization
+ * Re:play formatter for multi-conversation gameplay visualization
  * Formats gameplay JSON payloads as HTML chat UI
  *
- * Input format (in entry.message) — 1 送信 = 1 オブジェクト:
+ * Input format (in entry.message):
  *
- * 会話: { "npc": { ... }, "dialogue": [ ... ] }
- * 会話+respawn: { "npc": { ... }, "dialogue": [ ... ], "respawn": { ... } }
- * respawn のみ: { "respawn": { "nickname": "Toshi", "age": "40s", "gender": "male" } }
+ * { "gameplay": [{ "npc": {...}, "dialogue": [...] }, ...], "respawn": {...} }
  *
  * @see /Users/eotel/ghq/github.com/ccbtokyo/log-dot-print/plans/gameplay-json-plan.md
  * @related HtmlFormatter
@@ -74,34 +72,35 @@ export class ReplayFormatter implements LogFormatterPlugin {
    * Format a log entry containing chat messages as HTML
    */
   format(entry: LogEntry): string {
-    let payload: GameplayPayload;
-
     try {
       const parsed: unknown = JSON.parse(entry.message);
       if (!this.isRecord(parsed)) {
         return this.renderError("Invalid format: expected a gameplay JSON object");
       }
-      // Unwrap { data: { ... } } envelope if present
-      const inner = this.isRecord(parsed.data) ? parsed.data : parsed;
-      const hasNpc = this.isRecord(inner.npc);
-      const hasDialogue = Array.isArray(inner.dialogue);
-      const hasRespawn = this.isRecord(inner.respawn);
-      if (!hasNpc && !hasDialogue && !hasRespawn) {
-        return this.renderError("Invalid format: expected 'npc'+'dialogue' and/or 'respawn' field");
+      const hasGameplay = Array.isArray(parsed.gameplay);
+      const hasRespawn = this.isRecord(parsed.respawn);
+      if (!hasGameplay && !hasRespawn) {
+        return this.renderError("Invalid format: expected 'gameplay' array and/or 'respawn' field");
       }
-      payload = inner as unknown as GameplayPayload;
+      const conversations = this.parseConversations(parsed.gameplay);
+      if (conversations.length === 0 && !hasRespawn) {
+        return this.renderError("Invalid format: 'gameplay' array is empty and no 'respawn' field");
+      }
+      const respawn = hasRespawn ? (parsed.respawn as GameplayRespawnInfo) : undefined;
+      return this.renderGameplayHtml({ conversations, respawn });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return this.renderError(`JSON parse error: ${errorMessage}`);
     }
-
-    return this.renderGameplayHtml(payload);
   }
 
   /**
    * Render chat messages as HTML
    */
-  private renderGameplayHtml(payload: GameplayPayload): string {
+  private renderGameplayHtml(payload: {
+    conversations: GameplayConversation[];
+    respawn?: GameplayRespawnInfo;
+  }): string {
     const { fontFamily, fontSize, sideMargin, npcColor, playerColor, fontPath, pdfPaperSize } =
       this.config;
 
@@ -204,32 +203,31 @@ export class ReplayFormatter implements LogFormatterPlugin {
       margin-left: auto;
     }`;
 
-    const respawn: GameplayRespawnInfo | undefined = payload.respawn;
+    const respawn = payload.respawn;
     const playerNickname = respawn?.nickname ?? "Player";
 
     const footerHtml = respawn ? this.renderFooterHtml(respawn) : "";
 
-    let sectionsHtml = "";
-    if (payload.npc) {
-      const npcNickname = payload.npc.nickname ?? "NPC";
-      const npcHeader = `
-    <div class="npc-section-header">${this.escapeHtml(npcNickname)}</div>`;
-
-      const dialogue = Array.isArray(payload.dialogue) ? payload.dialogue : [];
-      const dialogueHtml = dialogue
-        .map((entry) => {
-          const typeClass = entry.role === "player" ? "player" : "npc";
-          const speaker =
-            entry.role === "player"
-              ? this.escapeHtml(playerNickname)
-              : this.escapeHtml(npcNickname);
-          const content = `${speaker}: ${this.escapeHtml(entry.text)}`;
-          return `\n    <div class="message ${typeClass}">${content}</div>`;
-        })
-        .join("");
-
-      sectionsHtml = `${npcHeader}${dialogueHtml}`;
-    }
+    const sectionsHtml = payload.conversations
+      .map((conv, index) => {
+        const divider = index > 0 ? `\n    <hr class="section-divider">` : "";
+        const npcNickname = conv.npc?.nickname ?? "NPC";
+        const npcHeader = `\n    <div class="npc-section-header">${this.escapeHtml(npcNickname)}</div>`;
+        const dialogue = Array.isArray(conv.dialogue) ? conv.dialogue : [];
+        const dialogueHtml = dialogue
+          .map((entry) => {
+            const typeClass = entry.role === "player" ? "player" : "npc";
+            const speaker =
+              entry.role === "player"
+                ? this.escapeHtml(playerNickname)
+                : this.escapeHtml(npcNickname);
+            const content = `${speaker}: ${this.escapeHtml(entry.text)}`;
+            return `\n    <div class="message ${typeClass}">${content}</div>`;
+          })
+          .join("");
+        return `${divider}${npcHeader}${dialogueHtml}`;
+      })
+      .join("");
 
     return `<!DOCTYPE html>
 <html lang="ja">
@@ -244,6 +242,21 @@ export class ReplayFormatter implements LogFormatterPlugin {
   </div>
 </body>
 </html>`;
+  }
+
+  private parseConversations(gameplay: unknown): GameplayConversation[] {
+    if (!Array.isArray(gameplay)) return [];
+    const result: GameplayConversation[] = [];
+    for (const item of gameplay) {
+      if (!this.isRecord(item) || !this.isRecord(item.npc)) continue;
+      result.push({
+        npc: item.npc as unknown as GameplayConversation["npc"],
+        dialogue: Array.isArray(item.dialogue)
+          ? (item.dialogue as GameplayConversation["dialogue"])
+          : [],
+      });
+    }
+    return result;
   }
 
   /**
