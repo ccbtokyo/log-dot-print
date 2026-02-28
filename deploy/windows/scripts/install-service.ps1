@@ -58,7 +58,7 @@ if ($existingService) {
 Write-Host "[1/5] Checking WinSW binary..." -ForegroundColor Yellow
 if (-not (Test-Path $ServiceExe)) {
     Write-Host "  Downloading WinSW..." -ForegroundColor Yellow
-    $winswUrl = "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-net461.exe"
+    $winswUrl = "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe"
     Invoke-WebRequest -Uri $winswUrl -OutFile $ServiceExe -UseBasicParsing
     if (-not (Test-Path $ServiceExe)) {
         Write-Error "Failed to download WinSW. Please download manually from:"
