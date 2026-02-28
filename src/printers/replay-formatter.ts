@@ -1,5 +1,4 @@
 import { resolve } from "node:path";
-import { readFileSync, existsSync } from "node:fs";
 import type {
   LogEntry,
   LogFormatterPlugin,
@@ -57,7 +56,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       this.config = this.sanitizeConfig(replayConfig);
     }
     this.fontDataUri = this.config.fontPath
-      ? this.loadFontAsDataUri(this.config.fontPath)
+      ? await this.loadFontAsDataUri(this.config.fontPath)
       : undefined;
   }
 
@@ -539,16 +538,17 @@ export class ReplayFormatter implements LogFormatterPlugin {
    * Playwright's page.setContent() loads pages at about:blank origin,
    * which blocks file:// URLs. Embedding fonts as data URIs avoids this.
    */
-  private loadFontAsDataUri(fontPath: string): string | undefined {
+  private async loadFontAsDataUri(fontPath: string): Promise<string | undefined> {
     const absolutePath = resolve(fontPath);
-    if (!existsSync(absolutePath)) {
+    try {
+      const bytes = await Bun.file(absolutePath).bytes();
+      const base64 = Buffer.from(bytes).toString("base64");
+      const mimeType = this.getFontMimeType(fontPath);
+      return `data:${mimeType};base64,${base64}`;
+    } catch {
       console.warn(`[ReplayFormatter] Font file not found: ${absolutePath}`);
       return undefined;
     }
-    const bytes = readFileSync(absolutePath);
-    const base64 = Buffer.from(bytes).toString("base64");
-    const mimeType = this.getFontMimeType(fontPath);
-    return `data:${mimeType};base64,${base64}`;
   }
 
   private getFontMimeType(fontPath: string): string {
