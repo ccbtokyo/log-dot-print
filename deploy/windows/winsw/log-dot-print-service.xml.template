@@ -23,7 +23,16 @@
   <startmode>Automatic</startmode>
   <delayedAutoStart>true</delayedAutoStart>
 
+  <!-- Run as the installing user (not LocalSystem) so that
+       Playwright browsers, printers, and user-profile paths are accessible -->
+  <serviceaccount>
+    <username>{{SERVICE_USER}}</username>
+    <password>{{SERVICE_PASSWORD}}</password>
+    <allowservicelogon>true</allowservicelogon>
+  </serviceaccount>
+
   <env name="NODE_ENV" value="production" />
+  <env name="PATH" value="{{NODE_DIR}};{{BUN_DIR}};%PATH%" />
 
   <priority>AboveNormal</priority>
   <stoptimeout>30 sec</stoptimeout>
