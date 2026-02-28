@@ -13,6 +13,8 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { resolveRequestSource } from "./request-source.js";
 
+const SUBMISSION_TIMEOUT_MS = 300_000;
+
 const LogSubmitPayloadSchema = z
   .object({
     success: z.boolean(),
@@ -432,7 +434,7 @@ export class HttpReceiver implements LogReceiverPlugin {
           code: "timeout",
           message: "Submission timed out",
         });
-      }, 5000);
+      }, SUBMISSION_TIMEOUT_MS);
 
       const handled = eventBus.emit("log:received", entry, (result: LogSubmitResult) => {
         if (settled) return;

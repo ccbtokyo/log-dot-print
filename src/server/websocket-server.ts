@@ -10,6 +10,8 @@ import { parseLogEntry } from "../core/index.js";
 import type { WebSocketHandler } from "./websocket-types.js";
 import type { WebSocketData } from "./bun-server.js";
 
+const SUBMISSION_TIMEOUT_MS = 300_000;
+
 /**
  * WebSocket server for real-time log streaming from UE
  * Uses Bun native WebSocket API
@@ -195,7 +197,7 @@ export class WebSocketReceiver implements LogReceiverPlugin, WebSocketHandler {
           code: "timeout",
           message: "Submission timed out",
         });
-      }, 5000);
+      }, SUBMISSION_TIMEOUT_MS);
 
       const handled = eventBus.emit("log:received", entry, (result: LogSubmitResult) => {
         if (settled) return;

@@ -148,7 +148,7 @@ curl -X POST http://localhost:3000/log \
 ### 504 Gateway Timeout
 
 - `timeout`:
-  - 受理処理が 5 秒以内に完了しない
+  - 受理処理が 300 秒以内に完了しない
 
 ### 500 Internal Server Error
 
@@ -156,10 +156,10 @@ curl -X POST http://localhost:3000/log \
 
 ## 参考: レスポンスのフィールド
 
-| フィールド | 型 | 説明 |
-| --- | --- | --- |
-| `success` | boolean | 受付成功 여부（`accepted` に相当） |
-| `id` | string | 受理したログのID（常に生成されたUUID） |
-| `queueSize` | number | 受理時点のキューサイズ |
-| `error` | string | 失敗時のメッセージ |
-| `code` | string | 失敗時の機械可読コード |
+| フィールド  | 型      | 説明                                   |
+| ----------- | ------- | -------------------------------------- |
+| `success`   | boolean | 受付成功 여부（`accepted` に相当）     |
+| `id`        | string  | 受理したログのID（常に生成されたUUID） |
+| `queueSize` | number  | 受理時点のキューサイズ                 |
+| `error`     | string  | 失敗時のメッセージ                     |
+| `code`      | string  | 失敗時の機械可読コード                 |
