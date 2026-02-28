@@ -115,23 +115,9 @@ try {
     Pop-Location
 }
 
-# 6. Configure service account
-Write-Host "[4/5] Configuring service account..." -ForegroundColor Yellow
-$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-Write-Host "  Current user: $currentUser" -ForegroundColor White
-$serviceUser = Read-Host "  Service account (Enter for current user: $currentUser)"
-if ([string]::IsNullOrWhiteSpace($serviceUser)) {
-    $serviceUser = $currentUser
-}
-if ($serviceUser -ne "LocalSystem") {
-    $securePassword = Read-Host "  Password for $serviceUser" -AsSecureString
-    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-    $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    & sc.exe config $ServiceName obj= "$serviceUser" password= "$plainPassword"
-    $plainPassword = $null
-}
-Write-Host "  OK: Service account configured" -ForegroundColor Green
+# 6. Service account: LocalSystem (sufficient for USB/serial printers)
+Write-Host "[4/5] Service account: LocalSystem" -ForegroundColor Yellow
+Write-Host "  OK: Using LocalSystem (default)" -ForegroundColor Green
 
 # 7. Firewall rule
 Write-Host "[5/5] Configuring firewall..." -ForegroundColor Yellow
