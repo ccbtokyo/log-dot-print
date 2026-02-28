@@ -65,7 +65,7 @@ try {
 Write-Host "[5/8] Installing Playwright Chromium..." -ForegroundColor Yellow
 Push-Location $ProjectRoot
 try {
-    & bunx playwright install chromium
+    & npx playwright install chromium
     Write-Host "  OK: Playwright Chromium installed" -ForegroundColor Green
 } finally {
     Pop-Location

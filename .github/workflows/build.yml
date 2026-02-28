@@ -31,7 +31,7 @@ jobs:
 
       - run: bun install
       - name: Install Playwright Chromium
-        run: bunx playwright install chromium
+        run: npx playwright install chromium
       - run: bun test
       - name: Build & Lint
         if: matrix.os == 'ubuntu-latest'
