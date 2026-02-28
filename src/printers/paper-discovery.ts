@@ -121,9 +121,25 @@ export async function getAvailablePaperSizes(
 ): Promise<PaperSizeListResult> {
   const resolvedName = printerName ?? null;
 
-  // Windows: use System.Drawing.Printing to get paper sizes with RawKind
+  // Windows: use DeviceCapabilities P/Invoke, then System.Drawing, then WMI
   if (process.platform === "win32") {
-    // First try System.Drawing.Printing for RawKind support
+    // First try DeviceCapabilities P/Invoke (most reliable across all machines)
+    try {
+      const details = await getWindowsPaperSizesViaDeviceCapabilities(printerName ?? undefined);
+      if (details.length > 0) {
+        const sizes = details.map((d) => d.name);
+        return {
+          paperSizes: sizes,
+          paperSizeDetails: details,
+          source: "dynamic",
+          printerName: resolvedName,
+        };
+      }
+    } catch {
+      // DeviceCapabilities failed — try System.Drawing fallback
+    }
+
+    // Second try System.Drawing.Printing for RawKind support
     try {
       const details = await getWindowsPaperSizesViaSystemDrawing(printerName ?? undefined);
       if (details.length > 0) {
@@ -188,6 +204,93 @@ export async function getAvailablePaperSizes(
     source: "fallback",
     printerName: resolvedName,
   };
+}
+
+/**
+ * Query Windows printer paper sizes via Win32 DeviceCapabilities P/Invoke.
+ * Uses winspool.drv DeviceCapabilities with DC_PAPERS (2) and DC_PAPERNAMES (16).
+ * More reliable than System.Drawing on some machines where the latter returns
+ * an incomplete paper list (e.g. ccbt PC with EPSON VP-F4400 driver).
+ * Printer name is passed via LOG_DOT_PRINT_PRINTER environment variable.
+ */
+async function getWindowsPaperSizesViaDeviceCapabilities(
+  printerName?: string,
+): Promise<PaperSizeInfo[]> {
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class WinspoolInterop {
+    [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int DeviceCapabilitiesW(
+        string pDevice,
+        string pPort,
+        ushort fwCapability,
+        IntPtr pOutput,
+        IntPtr pDevMode
+    );
+
+    public const ushort DC_PAPERS = 2;
+    public const ushort DC_PAPERNAMES = 16;
+}
+"@
+
+$inputName = [Environment]::GetEnvironmentVariable("LOG_DOT_PRINT_PRINTER")
+if ([string]::IsNullOrWhiteSpace($inputName)) {
+    $p = Get-CimInstance Win32_Printer -Filter "Default=True" | Select-Object -First 1
+    if (-not $p) { throw "No default printer found" }
+} else {
+    $wmiName = $inputName -replace "'", "''"
+    $p = Get-CimInstance Win32_Printer -Filter "Name='$wmiName'" | Select-Object -First 1
+    if (-not $p) { throw ("Printer not found: " + $inputName) }
+}
+$devName = $p.Name
+$portName = $p.PortName
+
+$count = [WinspoolInterop]::DeviceCapabilitiesW($devName, $portName, [WinspoolInterop]::DC_PAPERS, [IntPtr]::Zero, [IntPtr]::Zero)
+if ($count -le 0) { throw "DeviceCapabilities DC_PAPERS returned $count" }
+
+$papersPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($count * 2)
+try {
+    $ret = [WinspoolInterop]::DeviceCapabilitiesW($devName, $portName, [WinspoolInterop]::DC_PAPERS, $papersPtr, [IntPtr]::Zero)
+    if ($ret -lt 0) { throw "DeviceCapabilities DC_PAPERS (fill) returned $ret" }
+    $ids = New-Object int[] $count
+    for ($i = 0; $i -lt $count; $i++) {
+        $ids[$i] = [System.Runtime.InteropServices.Marshal]::ReadInt16($papersPtr, $i * 2)
+    }
+} finally {
+    [System.Runtime.InteropServices.Marshal]::FreeHGlobal($papersPtr)
+}
+
+$nameSlotBytes = 64 * 2
+$namesPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($count * $nameSlotBytes)
+try {
+    $ret = [WinspoolInterop]::DeviceCapabilitiesW($devName, $portName, [WinspoolInterop]::DC_PAPERNAMES, $namesPtr, [IntPtr]::Zero)
+    if ($ret -lt 0) { throw "DeviceCapabilities DC_PAPERNAMES (fill) returned $ret" }
+    $papers = @()
+    for ($i = 0; $i -lt $count; $i++) {
+        $offset = $i * $nameSlotBytes
+        $ptr = [IntPtr]::Add($namesPtr, $offset)
+        $name = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($ptr)
+        $papers += [PSCustomObject]@{ PaperName = $name; RawKind = $ids[$i] }
+    }
+} finally {
+    [System.Runtime.InteropServices.Marshal]::FreeHGlobal($namesPtr)
+}
+
+$papers | ConvertTo-Json -Depth 4 -Compress
+`.trim();
+
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  const { stdout } = await execFileAsync("powershell", ["-NoProfile", "-EncodedCommand", encoded], {
+    timeout: 15000,
+    env: {
+      ...process.env,
+      LOG_DOT_PRINT_PRINTER: printerName ?? "",
+    },
+  });
+  return parseWindowsPaperSizesOutput(stdout);
 }
 
 /**

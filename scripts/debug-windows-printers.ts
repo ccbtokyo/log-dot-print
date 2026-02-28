@@ -96,33 +96,76 @@ $items | ConvertTo-Json -Depth 4 -Compress
 `;
 
 const PAPERS_PS_SCRIPT = `
-Add-Type -AssemblyName System.Drawing
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class WinspoolInterop {
+    [DllImport("winspool.drv", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int DeviceCapabilitiesW(
+        string pDevice,
+        string pPort,
+        ushort fwCapability,
+        IntPtr pOutput,
+        IntPtr pDevMode
+    );
+
+    public const ushort DC_PAPERS = 2;
+    public const ushort DC_PAPERNAMES = 16;
+}
+"@
 
 $inputName = [Environment]::GetEnvironmentVariable("LOG_DOT_PRINT_PRINTER")
-$settings = New-Object System.Drawing.Printing.PrinterSettings
+if ([string]::IsNullOrWhiteSpace($inputName)) {
+    $p = Get-CimInstance Win32_Printer -Filter "Default=True" | Select-Object -First 1
+    if (-not $p) { throw "No default printer found" }
+} else {
+    $wmiName = $inputName -replace "'", "''"
+    $p = Get-CimInstance Win32_Printer -Filter "Name='$wmiName'" | Select-Object -First 1
+    if (-not $p) { throw ("Printer not found: " + $inputName) }
+}
+$devName = $p.Name
+$portName = $p.PortName
+$isDefault = [bool]$p.Default
 
-if (-not [string]::IsNullOrWhiteSpace($inputName)) {
-  $settings.PrinterName = $inputName
+$count = [WinspoolInterop]::DeviceCapabilitiesW($devName, $portName, [WinspoolInterop]::DC_PAPERS, [IntPtr]::Zero, [IntPtr]::Zero)
+if ($count -le 0) { throw "DeviceCapabilities DC_PAPERS returned $count" }
+
+$papersPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($count * 2)
+try {
+    $ret = [WinspoolInterop]::DeviceCapabilitiesW($devName, $portName, [WinspoolInterop]::DC_PAPERS, $papersPtr, [IntPtr]::Zero)
+    if ($ret -lt 0) { throw "DeviceCapabilities DC_PAPERS (fill) returned $ret" }
+    $ids = New-Object int[] $count
+    for ($i = 0; $i -lt $count; $i++) {
+        $ids[$i] = [System.Runtime.InteropServices.Marshal]::ReadInt16($papersPtr, $i * 2)
+    }
+} finally {
+    [System.Runtime.InteropServices.Marshal]::FreeHGlobal($papersPtr)
 }
 
-if (-not $settings.IsValid) {
-  throw ("Printer not valid: " + $settings.PrinterName)
-}
-
-$isDefault = $settings.IsDefaultPrinter
-$papers = @()
-
-foreach ($ps in $settings.PaperSizes) {
-  $papers += [PSCustomObject]@{
-    paperSize = [string]$ps.PaperName
-    paperKind = [int]$ps.RawKind
-  }
+$nameSlotBytes = 64 * 2
+$namesPtr = [System.Runtime.InteropServices.Marshal]::AllocHGlobal($count * $nameSlotBytes)
+try {
+    $ret = [WinspoolInterop]::DeviceCapabilitiesW($devName, $portName, [WinspoolInterop]::DC_PAPERNAMES, $namesPtr, [IntPtr]::Zero)
+    if ($ret -lt 0) { throw "DeviceCapabilities DC_PAPERNAMES (fill) returned $ret" }
+    $papers = @()
+    for ($i = 0; $i -lt $count; $i++) {
+        $offset = $i * $nameSlotBytes
+        $ptr = [IntPtr]::Add($namesPtr, $offset)
+        $name = [System.Runtime.InteropServices.Marshal]::PtrToStringUni($ptr)
+        $papers += [PSCustomObject]@{
+            paperSize = $name
+            paperKind = $ids[$i]
+        }
+    }
+} finally {
+    [System.Runtime.InteropServices.Marshal]::FreeHGlobal($namesPtr)
 }
 
 [PSCustomObject]@{
-  printerName = [string]$settings.PrinterName
-  isDefault = [bool]$isDefault
-  papers = $papers
+    printerName = [string]$devName
+    isDefault = $isDefault
+    papers = $papers
 } | ConvertTo-Json -Depth 6 -Compress
 `;
 
