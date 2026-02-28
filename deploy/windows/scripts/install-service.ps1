@@ -114,7 +114,12 @@ if (-not ($xmlContent -match '\{\{PROJECT_ROOT\}\}')) {
 $xmlContent = $xmlContent -replace '\{\{PROJECT_ROOT\}\}', $ProjectRoot.Path
 $xmlContent = $xmlContent -replace '\{\{BUN_PATH\}\}', $bunAbsPath
 $xmlContent = $xmlContent -replace '\{\{BUN_DIR\}\}', $bunDir
+# Playwright browsers installed under current user's profile
+$playwrightPath = Join-Path $env:LOCALAPPDATA "ms-playwright"
+Write-Host "  Playwright: $playwrightPath" -ForegroundColor White
+
 $xmlContent = $xmlContent -replace '\{\{NODE_DIR\}\}', $nodeDir
+$xmlContent = $xmlContent -replace '\{\{PLAYWRIGHT_BROWSERS_PATH\}\}', $playwrightPath
 $xmlContent = $xmlContent -replace '\{\{SERVICE_USER\}\}', $serviceUser
 $xmlContent = $xmlContent -replace '\{\{SERVICE_PASSWORD\}\}', [System.Security.SecurityElement]::Escape($plainPassword)
 $plainPassword = $null

@@ -33,6 +33,7 @@
 
   <env name="NODE_ENV" value="production" />
   <env name="PATH" value="{{NODE_DIR}};{{BUN_DIR}};%PATH%" />
+  <env name="PLAYWRIGHT_BROWSERS_PATH" value="{{PLAYWRIGHT_BROWSERS_PATH}}" />
 
   <priority>AboveNormal</priority>
   <stoptimeout>30 sec</stoptimeout>

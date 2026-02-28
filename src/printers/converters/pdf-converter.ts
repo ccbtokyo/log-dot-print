@@ -131,10 +131,14 @@ async function renderPdfViaSubprocess(
   proc.stdin.flush();
   proc.stdin.end();
 
-  const exitCode = await proc.exited;
-
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
+  // Read stdout/stderr concurrently with process exit to avoid pipe deadlock.
+  // If stdout/stderr buffers fill up while we only await proc.exited,
+  // the subprocess blocks on write and never exits → deadlock.
+  const [exitCode, stdout, stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
 
   if (stderr) {
     console.error("[PdfConverter] Subprocess stderr:", stderr);
