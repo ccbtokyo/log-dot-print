@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import type {
   LogEntry,
   LogFormatterPlugin,
@@ -541,7 +542,15 @@ export class ReplayFormatter implements LogFormatterPlugin {
   private async loadFontAsDataUri(fontPath: string): Promise<string | undefined> {
     const absolutePath = resolve(fontPath);
     try {
-      const bytes = await Bun.file(absolutePath).bytes();
+      // Use fetch + file:// URL to handle Unicode filenames on Windows.
+      // Bun.file() and node:fs fail with Japanese characters on Windows.
+      const fileUrl = pathToFileURL(absolutePath);
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        console.warn(`[ReplayFormatter] Font file not found: ${absolutePath}`);
+        return undefined;
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer());
       const base64 = Buffer.from(bytes).toString("base64");
       const mimeType = this.getFontMimeType(fontPath);
       return `data:${mimeType};base64,${base64}`;
