@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { readFileSync, existsSync } from "node:fs";
 import type {
   LogEntry,
   LogFormatterPlugin,
@@ -45,6 +45,7 @@ export class HtmlFormatter implements LogFormatterPlugin {
   readonly version = "1.0.0";
 
   private config: typeof DEFAULT_CONFIG = { ...DEFAULT_CONFIG };
+  private fontDataUri: string | undefined;
 
   async initialize(_eventBus: TypedEventEmitter, config: SystemConfig): Promise<void> {
     if (config.format?.outputFormat === "html") {
@@ -64,6 +65,9 @@ export class HtmlFormatter implements LogFormatterPlugin {
         pdfPaperSize: htmlConfig.pdfPaperSize,
       };
     }
+    this.fontDataUri = this.config.fontPath
+      ? this.loadFontAsDataUri(this.config.fontPath)
+      : undefined;
   }
 
   async shutdown(): Promise<void> {
@@ -91,12 +95,11 @@ export class HtmlFormatter implements LogFormatterPlugin {
       pdfPaperSize,
     } = this.config;
 
-    const fontFileUrl = fontPath ? this.toFontFileUrl(fontPath) : undefined;
-    const fontFaceRule = fontFileUrl
+    const fontFaceRule = this.fontDataUri
       ? `
     @font-face {
       font-family: '${fontFamily}';
-      src: url('${fontFileUrl}') format('${this.getFontFormat(fontPath!)}');
+      src: url('${this.fontDataUri}') format('${this.getFontFormat(fontPath!)}');
       font-weight: normal;
       font-style: normal;
     }`
@@ -260,11 +263,35 @@ export class HtmlFormatter implements LogFormatterPlugin {
   }
 
   /**
-   * Convert a font file path to a file:// URL for Playwright setContent() compatibility
+   * Read a font file and return a base64 data URI.
+   * Playwright's page.setContent() loads pages at about:blank origin,
+   * which blocks file:// URLs. Embedding fonts as data URIs avoids this.
    */
-  private toFontFileUrl(fontPath: string): string {
+  private loadFontAsDataUri(fontPath: string): string | undefined {
     const absolutePath = resolve(fontPath);
-    return pathToFileURL(absolutePath).href;
+    if (!existsSync(absolutePath)) {
+      console.warn(`[HtmlFormatter] Font file not found: ${absolutePath}`);
+      return undefined;
+    }
+    const bytes = readFileSync(absolutePath);
+    const base64 = Buffer.from(bytes).toString("base64");
+    const mimeType = this.getFontMimeType(fontPath);
+    return `data:${mimeType};base64,${base64}`;
+  }
+
+  private getFontMimeType(fontPath: string): string {
+    const ext = fontPath.split(".").pop()?.toLowerCase();
+    switch (ext) {
+      case "woff2":
+        return "font/woff2";
+      case "woff":
+        return "font/woff";
+      case "otf":
+        return "font/otf";
+      case "ttf":
+      default:
+        return "font/ttf";
+    }
   }
 
   /**

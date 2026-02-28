@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { readFileSync, existsSync } from "node:fs";
 import type {
   LogEntry,
   LogFormatterPlugin,
@@ -49,12 +49,16 @@ export class ReplayFormatter implements LogFormatterPlugin {
   readonly version = "1.0.0";
 
   private config: typeof DEFAULT_CONFIG = { ...DEFAULT_CONFIG };
+  private fontDataUri: string | undefined;
 
   async initialize(_eventBus: TypedEventEmitter, config: SystemConfig): Promise<void> {
     if (config.format?.outputFormat === "replay") {
       const replayConfig = config.format as ReplayFormatConfig;
       this.config = this.sanitizeConfig(replayConfig);
     }
+    this.fontDataUri = this.config.fontPath
+      ? this.loadFontAsDataUri(this.config.fontPath)
+      : undefined;
   }
 
   async shutdown(): Promise<void> {
@@ -120,11 +124,11 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const safeFontPath = this.sanitizeFontPath(fontPath);
 
     const primaryFontFamily = this.getPrimaryFontFamily(safeFontFamily);
-    const fontFaceRule = safeFontPath
+    const fontFaceRule = this.fontDataUri
       ? `
     @font-face {
       font-family: '${this.escapeCssString(primaryFontFamily)}';
-      src: url('${this.escapeCssString(this.toFontFileUrl(safeFontPath))}') format('${this.getFontFormat(safeFontPath)}');
+      src: url('${this.fontDataUri}') format('${this.getFontFormat(safeFontPath!)}');
       font-weight: normal;
       font-style: normal;
     }`
@@ -531,14 +535,35 @@ export class ReplayFormatter implements LogFormatterPlugin {
   }
 
   /**
-   * Get font format from file extension
+   * Read a font file and return a base64 data URI.
+   * Playwright's page.setContent() loads pages at about:blank origin,
+   * which blocks file:// URLs. Embedding fonts as data URIs avoids this.
    */
-  /**
-   * Convert a font file path to a file:// URL for Playwright setContent() compatibility
-   */
-  private toFontFileUrl(fontPath: string): string {
+  private loadFontAsDataUri(fontPath: string): string | undefined {
     const absolutePath = resolve(fontPath);
-    return pathToFileURL(absolutePath).href;
+    if (!existsSync(absolutePath)) {
+      console.warn(`[ReplayFormatter] Font file not found: ${absolutePath}`);
+      return undefined;
+    }
+    const bytes = readFileSync(absolutePath);
+    const base64 = Buffer.from(bytes).toString("base64");
+    const mimeType = this.getFontMimeType(fontPath);
+    return `data:${mimeType};base64,${base64}`;
+  }
+
+  private getFontMimeType(fontPath: string): string {
+    const ext = fontPath.split(".").pop()?.toLowerCase();
+    switch (ext) {
+      case "woff2":
+        return "font/woff2";
+      case "woff":
+        return "font/woff";
+      case "otf":
+        return "font/otf";
+      case "ttf":
+      default:
+        return "font/ttf";
+    }
   }
 
   private getFontFormat(fontPath: string): string {

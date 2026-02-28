@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach } from "bun:test";
+import { resolve } from "node:path";
 import { HtmlFormatter } from "../html-formatter";
 import type {
   LogEntry,
@@ -180,12 +181,13 @@ describe("HtmlFormatter", () => {
       expect(result).toContain("MyCustomFont");
     });
 
-    test("includes @font-face when fontPath is specified", async () => {
+    test("includes @font-face with base64 data URI when fontPath is a valid file", async () => {
+      const fontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
       await formatter.initialize(
         mockEventBus,
         createConfig({
           fontFamily: "CustomFont",
-          fontPath: "/path/to/font.ttf",
+          fontPath,
         }),
       );
       const entry = createEntry();
@@ -194,7 +196,23 @@ describe("HtmlFormatter", () => {
 
       expect(result).toContain("@font-face");
       expect(result).toContain("CustomFont");
-      expect(result).toContain("/path/to/font.ttf");
+      expect(result).toContain("data:font/ttf;base64,");
+      expect(result).not.toContain("file://");
+    });
+
+    test("omits @font-face when fontPath points to non-existent file", async () => {
+      await formatter.initialize(
+        mockEventBus,
+        createConfig({
+          fontFamily: "CustomFont",
+          fontPath: "/non/existent/font.ttf",
+        }),
+      );
+      const entry = createEntry();
+
+      const result = formatter.format(entry);
+
+      expect(result).not.toContain("@font-face");
     });
 
     test("applies custom font size", async () => {

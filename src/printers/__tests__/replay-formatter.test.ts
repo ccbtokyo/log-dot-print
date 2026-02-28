@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 import { ReplayFormatter } from "../replay-formatter.js";
 import type {
   LogEntry,
@@ -921,12 +920,13 @@ describe("ReplayFormatter", () => {
       expect(html).not.toContain("portrait");
     });
 
-    test("applies custom font path with @font-face", async () => {
+    test("applies custom font path with base64 data URI @font-face", async () => {
+      const fontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
       await formatter.initialize(
         eventBus,
         createConfig({
           fontFamily: "CustomFont",
-          fontPath: "/fonts/custom.ttf",
+          fontPath,
         }),
       );
 
@@ -934,52 +934,33 @@ describe("ReplayFormatter", () => {
       const html = formatter.format(entry);
 
       expect(html).toContain("@font-face");
-      expect(html).toContain("/fonts/custom.ttf");
+      expect(html).toContain("data:font/ttf;base64,");
       expect(html).toContain("truetype");
+      expect(html).not.toContain("file://");
     });
 
-    test("resolves relative fontPath to absolute file:// URL", async () => {
+    test("omits @font-face when fontPath points to non-existent file", async () => {
       await formatter.initialize(
         eventBus,
         createConfig({
           fontFamily: "CustomFont",
-          fontPath: "./fonts/custom.ttf",
+          fontPath: "/non/existent/font.ttf",
         }),
       );
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain("@font-face");
-      // Relative path should be resolved to file:// absolute URL
-      expect(html).toContain("file://");
-      expect(html).toMatch(/file:\/\/.*fonts\/custom\.ttf/);
-      // Should NOT contain the raw relative path
-      expect(html).not.toContain("url('./fonts/custom.ttf')");
-    });
-
-    test("keeps absolute fontPath as file:// URL", async () => {
-      await formatter.initialize(
-        eventBus,
-        createConfig({
-          fontFamily: "CustomFont",
-          fontPath: "/usr/share/fonts/custom.ttf",
-        }),
-      );
-
-      const entry = createLogEntry(JSON.stringify(createPayload()));
-      const html = formatter.format(entry);
-
-      const expectedUrl = pathToFileURL(resolve("/usr/share/fonts/custom.ttf")).href;
-      expect(html).toContain(expectedUrl);
+      expect(html).not.toContain("@font-face");
     });
 
     test("handles font family stacks with @font-face correctly", async () => {
+      const fontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
       await formatter.initialize(
         eventBus,
         createConfig({
           fontFamily: "CustomFont, sans-serif",
-          fontPath: "/fonts/custom.ttf",
+          fontPath,
         }),
       );
 
