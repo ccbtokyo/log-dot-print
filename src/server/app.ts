@@ -519,6 +519,15 @@ export class LogPrintApp {
 
     // Format and print
     const formattedContent = this.formatter.format(entry);
+    if (formattedContent === "") {
+      console.log("[App] Formatter returned empty content, skipping print");
+      return {
+        accepted: false,
+        id: entry.id,
+        code: "SKIPPED",
+        message: "Formatter returned empty content",
+      };
+    }
     let contentType = this.formatter.getContentType?.() ?? "text";
     console.log(
       `[App] contentType=${contentType}, outputFormat=${this.config.format?.outputFormat}`,

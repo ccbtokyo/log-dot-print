@@ -226,6 +226,8 @@ export interface ReplayFormatConfig {
   npcColor?: string;
   /** Color for Player messages */
   playerColor?: string;
+  /** Skip rendering respawn (player profile) footer. Conversations still use respawn.nickname as speaker. */
+  skipRespawn?: boolean;
 }
 
 /**

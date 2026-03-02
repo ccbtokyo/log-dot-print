@@ -31,6 +31,7 @@ const DEFAULT_CONFIG: Required<
   sideMargin: 10,
   npcColor: "#333",
   playerColor: "#333",
+  skipRespawn: false,
 };
 
 /**
@@ -91,7 +92,15 @@ export class ReplayFormatter implements LogFormatterPlugin {
         return this.renderError("Invalid format: 'gameplay' array is empty and no 'respawn' field");
       }
       const respawn = hasRespawn ? (parsed.respawn as GameplayRespawnInfo) : undefined;
-      return this.renderGameplayHtml({ conversations, respawn });
+      if (this.config.skipRespawn && conversations.length === 0) {
+        return "";
+      }
+      const effectiveRespawn = this.config.skipRespawn ? undefined : respawn;
+      return this.renderGameplayHtml({
+        conversations,
+        respawn: effectiveRespawn,
+        playerNickname: respawn?.nickname,
+      });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return this.renderError(`JSON parse error: ${errorMessage}`);
@@ -104,6 +113,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
   private renderGameplayHtml(payload: {
     conversations: GameplayConversation[];
     respawn?: GameplayRespawnInfo;
+    playerNickname?: string;
   }): string {
     const { fontFamily, fontSize, sideMargin, npcColor, playerColor, fontPath, pdfPaperSize } =
       this.config;
@@ -208,7 +218,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     }`;
 
     const respawn = payload.respawn;
-    const playerNickname = respawn?.nickname ?? "Player";
+    const playerNickname = payload.playerNickname ?? respawn?.nickname ?? "Player";
 
     const footerHtml = respawn ? this.renderFooterHtml(respawn) : "";
 
@@ -436,6 +446,8 @@ export class ReplayFormatter implements LogFormatterPlugin {
         ? replayConfig.pdfPaperSize
         : undefined;
 
+    const skipRespawn = replayConfig.skipRespawn === true;
+
     return {
       outputFormat: "replay",
       fontFamily,
@@ -447,6 +459,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       css,
       fontPath,
       pdfPaperSize,
+      skipRespawn,
     };
   }
 

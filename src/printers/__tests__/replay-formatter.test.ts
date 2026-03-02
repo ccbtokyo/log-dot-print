@@ -1115,4 +1115,64 @@ describe("ReplayFormatter", () => {
       expect(formatter.getContentType()).toBe("html");
     });
   });
+
+  describe("skipRespawn flag", () => {
+    test("does not render footer when skipRespawn is true", async () => {
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: true }));
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain('class="player-footer"');
+      expect(html).not.toContain("名前 / Nickname");
+      // Conversations should still be rendered
+      expect(html).toContain('class="message npc"');
+      expect(html).toContain('class="message player"');
+    });
+
+    test("still uses respawn.nickname as player speaker in dialogue", async () => {
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: true }));
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const playerMessages = html.match(/class="message player">[^<]*/g) ?? [];
+      expect(playerMessages.length).toBeGreaterThan(0);
+      for (const msg of playerMessages) {
+        expect(msg).toContain("Toshi: ");
+      }
+    });
+
+    test("returns empty string for respawn-only payload when skipRespawn is true", async () => {
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: true }));
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: [],
+          respawn: { nickname: "Toshi", age: "30s", gender: "male" },
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toBe("");
+    });
+
+    test("renders footer when skipRespawn is false (default)", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain('class="player-footer"');
+    });
+
+    test("renders footer when skipRespawn is explicitly false", async () => {
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain('class="player-footer"');
+    });
+  });
 });
