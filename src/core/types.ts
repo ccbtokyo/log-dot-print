@@ -228,6 +228,10 @@ export interface ReplayFormatConfig {
   playerColor?: string;
   /** Skip rendering respawn (player profile) footer. Conversations still use respawn.nickname as speaker. */
   skipRespawn?: boolean;
+  /** Path to font file for artwork credit section */
+  creditFontPath?: string;
+  /** Font family for artwork credit section */
+  creditFontFamily?: string;
 }
 
 /**

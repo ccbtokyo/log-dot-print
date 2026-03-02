@@ -117,7 +117,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders player-footer after dialogue sections", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
@@ -130,7 +130,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders bilingual nickname label", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
@@ -140,7 +140,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders bilingual age label with localized value", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
@@ -150,7 +150,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders bilingual gender label with localized value", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
@@ -160,7 +160,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders optional fields when provided", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
@@ -176,7 +176,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("omits optional fields when absent", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const payload = createPayload({
         respawn: {
@@ -198,7 +198,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("omits optional fields when empty string", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const payload = createPayload({
         respawn: {
@@ -241,7 +241,7 @@ describe("ReplayFormatter", () => {
 
   describe("age/gender localization", () => {
     test("localizes age decades to Japanese", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const ages = [
         { input: "20s", expected: "20s （20代）" },
@@ -263,7 +263,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders unknown age value as-is", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const payload = createPayload({
         respawn: { nickname: "X", age: "unknown", gender: "male" },
@@ -276,7 +276,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("localizes known genders to Japanese", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const genders = [
         { input: "male", expected: "male（男性）" },
@@ -297,7 +297,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders unknown gender value as-is", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const payload = createPayload({
         respawn: { nickname: "X", age: "20s", gender: "non-binary" },
@@ -451,9 +451,9 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(payload));
       const html = formatter.format(entry);
 
-      // Exactly one <hr> divider between the two conversations
-      const hrCount = (html.match(/<hr class="section-divider">/g) ?? []).length;
-      expect(hrCount).toBe(1);
+      // Exactly one <div> divider between the two conversations
+      const dividerCount = (html.match(/<div class="section-divider"><\/div>/g) ?? []).length;
+      expect(dividerCount).toBe(1);
     });
 
     test("does not insert section-divider for single conversation", async () => {
@@ -462,7 +462,7 @@ describe("ReplayFormatter", () => {
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).not.toContain('<hr class="section-divider">');
+      expect(html).not.toContain('<div class="section-divider">');
     });
 
     test("uses respawn.nickname as player name in all conversations", async () => {
@@ -493,7 +493,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders footer only once at the end", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const payload = createPayload({
         gameplay: [
@@ -539,7 +539,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders footer only for empty gameplay with respawn", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(
         JSON.stringify({
@@ -652,7 +652,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("escapes HTML in respawn nickname in footer", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const payload = createPayload({
         respawn: {
@@ -669,7 +669,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("escapes HTML in optional footer fields", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const payload = createPayload({
         respawn: {
@@ -825,7 +825,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders respawn-only payload with footer only", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(
         JSON.stringify({
@@ -1158,13 +1158,13 @@ describe("ReplayFormatter", () => {
       expect(html).toBe("");
     });
 
-    test("renders footer when skipRespawn is false (default)", async () => {
+    test("does not render footer by default (skipRespawn defaults to true)", async () => {
       await formatter.initialize(eventBus, createConfig());
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
 
-      expect(html).toContain('class="player-footer"');
+      expect(html).not.toContain('class="player-footer"');
     });
 
     test("renders footer when skipRespawn is explicitly false", async () => {
@@ -1189,7 +1189,7 @@ describe("ReplayFormatter", () => {
     });
 
     test("renders credit after player-footer", async () => {
-      await formatter.initialize(eventBus, createConfig());
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
 
       const entry = createLogEntry(JSON.stringify(createPayload()));
       const html = formatter.format(entry);
@@ -1243,6 +1243,198 @@ describe("ReplayFormatter", () => {
       const html = formatter.format(entry);
 
       expect(html).toBe("");
+    });
+
+    test("artwork-credit uses CSS pseudo-element lines instead of text dashes", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // No text dashes in the credit element
+      expect(html).not.toContain("------");
+      // CSS pseudo-elements draw the lines
+      expect(html).toContain(".artwork-credit::before");
+      expect(html).toContain(".artwork-credit::after");
+      expect(html).toMatch(/\.artwork-credit::before[\s\S]*?border-top:\s*2px solid/);
+    });
+
+    test("renders credit @font-face when creditFontPath is specified", async () => {
+      const creditFontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
+      await formatter.initialize(
+        eventBus,
+        createConfig({
+          creditFontPath,
+          creditFontFamily: "IBMPlexSansJP, sans-serif",
+        }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // Should have a @font-face for the credit font
+      const fontFaceMatches = html.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+      const creditFontFace = fontFaceMatches.find((m) => m.includes("IBMPlexSansJP"));
+      expect(creditFontFace).toBeDefined();
+      expect(creditFontFace).toContain("data:font/ttf;base64,");
+      expect(creditFontFace).toContain("truetype");
+    });
+
+    test("applies creditFontFamily to .artwork-credit CSS", async () => {
+      const creditFontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
+      await formatter.initialize(
+        eventBus,
+        createConfig({
+          creditFontPath,
+          creditFontFamily: "IBMPlexSansJP, sans-serif",
+        }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const creditCssMatch = html.match(/\.artwork-credit\s*\{[^}]*\}/);
+      expect(creditCssMatch).not.toBeNull();
+      expect(creditCssMatch![0]).toContain("font-family:");
+      expect(creditCssMatch![0]).toContain("IBMPlexSansJP");
+    });
+
+    test("does not add credit @font-face when creditFontPath is not specified", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // No @font-face at all when neither fontPath nor creditFontPath is set
+      expect(html).not.toContain("@font-face");
+    });
+
+    test("does not add font-family to .artwork-credit when creditFontFamily is not specified", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const creditCssMatch = html.match(/\.artwork-credit\s*\{[^}]*\}/);
+      expect(creditCssMatch).not.toBeNull();
+      expect(creditCssMatch![0]).not.toContain("font-family:");
+    });
+
+    test("renders both primary and credit @font-face when both fontPath and creditFontPath are set", async () => {
+      const fontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
+      const creditFontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
+      await formatter.initialize(
+        eventBus,
+        createConfig({
+          fontFamily: "DartsFont, sans-serif",
+          fontPath,
+          creditFontPath,
+          creditFontFamily: "IBMPlexSansJP, sans-serif",
+        }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const fontFaceMatches = html.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+      expect(fontFaceMatches.length).toBe(2);
+    });
+
+    test("credit font does not affect body font-family", async () => {
+      const creditFontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
+      await formatter.initialize(
+        eventBus,
+        createConfig({
+          creditFontPath,
+          creditFontFamily: "IBMPlexSansJP, sans-serif",
+        }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // Body should still use the default font family, not the credit font
+      const bodyCssMatch = html.match(/body\s*\{[^}]*\}/);
+      expect(bodyCssMatch).not.toBeNull();
+      expect(bodyCssMatch![0]).not.toContain("IBMPlexSansJP");
+    });
+
+    test("artwork-credit CSS does not include border-top on main element", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const creditCssMatch = html.match(/\.artwork-credit\s*\{[^}]*\}/);
+      expect(creditCssMatch).not.toBeNull();
+      expect(creditCssMatch![0]).not.toContain("border-top");
+    });
+  });
+
+  describe("section divider layout", () => {
+    test("uses <div> element instead of <hr> for section divider", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const payload = createPayload({
+        gameplay: [
+          {
+            npc: { replay_id: "r1", nickname: "NPC1" },
+            dialogue: [{ role: "npc" as const, text: "Hello" }],
+          },
+          {
+            npc: { replay_id: "r2", nickname: "NPC2" },
+            dialogue: [{ role: "npc" as const, text: "Hi" }],
+          },
+        ],
+      });
+      const entry = createLogEntry(JSON.stringify(payload));
+      const html = formatter.format(entry);
+
+      expect(html).toContain('<div class="section-divider">');
+      expect(html).not.toContain("<hr");
+    });
+
+    test("section-divider CSS uses 1px border-top", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const dividerCssMatch = html.match(/\.section-divider\s*\{[^}]*\}/);
+      expect(dividerCssMatch).not.toBeNull();
+      expect(dividerCssMatch![0]).toContain("border-top: 1px solid");
+    });
+
+    test("section-divider has generous margin", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const dividerCssMatch = html.match(/\.section-divider\s*\{[^}]*\}/);
+      expect(dividerCssMatch).not.toBeNull();
+      expect(dividerCssMatch![0]).toContain("margin: 32px 0");
+    });
+  });
+
+  describe("default skipRespawn behavior", () => {
+    test("player-footer is hidden by default", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain('class="player-footer"');
+      expect(html).toContain('class="message npc"');
+    });
+
+    test("player-footer is shown when skipRespawn is explicitly false", async () => {
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: false }));
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain('class="player-footer"');
     });
   });
 });

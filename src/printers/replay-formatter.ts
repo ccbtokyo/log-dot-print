@@ -16,13 +16,24 @@ import { paperNameToCssPageSize } from "./paper-size-resolver.js";
  * Default re:play format configuration
  */
 const DEFAULT_CONFIG: Required<
-  Omit<ReplayFormatConfig, "outputFormat" | "css" | "fontPath" | "sideMargin" | "pdfPaperSize">
+  Omit<
+    ReplayFormatConfig,
+    | "outputFormat"
+    | "css"
+    | "fontPath"
+    | "sideMargin"
+    | "pdfPaperSize"
+    | "creditFontPath"
+    | "creditFontFamily"
+  >
 > & {
   outputFormat: "replay";
   css?: string;
   fontPath?: string;
   sideMargin: number;
   pdfPaperSize?: string;
+  creditFontPath?: string;
+  creditFontFamily?: string;
 } = {
   outputFormat: "replay",
   fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -31,7 +42,7 @@ const DEFAULT_CONFIG: Required<
   sideMargin: 10,
   npcColor: "#333",
   playerColor: "#333",
-  skipRespawn: false,
+  skipRespawn: true,
 };
 
 /**
@@ -51,6 +62,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
 
   private config: typeof DEFAULT_CONFIG = { ...DEFAULT_CONFIG };
   private fontDataUri: string | undefined;
+  private creditFontDataUri: string | undefined;
 
   async initialize(_eventBus: TypedEventEmitter, config: SystemConfig): Promise<void> {
     if (config.format?.outputFormat === "replay") {
@@ -59,6 +71,9 @@ export class ReplayFormatter implements LogFormatterPlugin {
     }
     this.fontDataUri = this.config.fontPath
       ? await this.loadFontAsDataUri(this.config.fontPath)
+      : undefined;
+    this.creditFontDataUri = this.config.creditFontPath
+      ? await this.loadFontAsDataUri(this.config.creditFontPath)
       : undefined;
   }
 
@@ -115,8 +130,17 @@ export class ReplayFormatter implements LogFormatterPlugin {
     respawn?: GameplayRespawnInfo;
     playerNickname?: string;
   }): string {
-    const { fontFamily, fontSize, sideMargin, npcColor, playerColor, fontPath, pdfPaperSize } =
-      this.config;
+    const {
+      fontFamily,
+      fontSize,
+      sideMargin,
+      npcColor,
+      playerColor,
+      fontPath,
+      pdfPaperSize,
+      creditFontPath,
+      creditFontFamily,
+    } = this.config;
 
     const safeFontFamily = this.sanitizeFontFamilyList(fontFamily);
     const safeFontSize = this.sanitizeNumber(fontSize, DEFAULT_CONFIG.fontSize, {
@@ -143,6 +167,24 @@ export class ReplayFormatter implements LogFormatterPlugin {
       font-style: normal;
     }`
       : "";
+
+    const safeCreditFontPath = this.sanitizeFontPath(creditFontPath);
+    const safeCreditFontFamily = creditFontFamily
+      ? this.sanitizeFontFamilyList(creditFontFamily)
+      : undefined;
+    const creditPrimaryFontFamily = safeCreditFontFamily
+      ? this.getPrimaryFontFamily(safeCreditFontFamily)
+      : undefined;
+    const creditFontFaceRule =
+      this.creditFontDataUri && creditPrimaryFontFamily
+        ? `
+    @font-face {
+      font-family: '${this.escapeCssString(creditPrimaryFontFamily)}';
+      src: url('${this.creditFontDataUri}') format('${this.getFontFormat(safeCreditFontPath!)}');
+      font-weight: normal;
+      font-style: normal;
+    }`
+        : "";
 
     const cssPageSize = pdfPaperSize ? paperNameToCssPageSize(pdfPaperSize) : "";
     // Only append portrait keyword for standard page-size names (e.g. "A4").
@@ -172,7 +214,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     .player-footer {
       margin-top: 24px;
       padding-top: 12px;
-      border-top: 2px solid #ccc;
+      border-top: 1px solid #ccc;
     }
     .player-footer .attr-block {
       margin-bottom: 12px;
@@ -188,13 +230,23 @@ export class ReplayFormatter implements LogFormatterPlugin {
       word-wrap: break-word;
     }
     .artwork-credit {
-      margin-top: 32px;
-      padding-top: 16px;
-      border-top: 2px solid #ccc;
+      margin-top: 64px;
+      margin-bottom: 48px;
       text-align: center;
       font-weight: bold;
       font-size: 1.2em;
       letter-spacing: 0.1em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;${safeCreditFontFamily ? `\n      font-family: ${safeCreditFontFamily};` : ""}
+    }
+    .artwork-credit::before,
+    .artwork-credit::after {
+      content: '';
+      display: inline-block;
+      width: 80px;
+      border-top: 2px solid #ccc;
     }
     .npc-section-header {
       font-weight: bold;
@@ -205,7 +257,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     .section-divider {
       border: none;
       border-top: 1px solid #ccc;
-      margin: 20px 0;
+      margin: 32px 0;
     }
     .chat-container {
       max-width: 100%;
@@ -234,7 +286,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
 
     const sectionsHtml = payload.conversations
       .map((conv, index) => {
-        const divider = index > 0 ? `\n    <hr class="section-divider">` : "";
+        const divider = index > 0 ? `\n    <div class="section-divider"></div>` : "";
         const npcNickname = conv.npc?.nickname ?? "NPC";
         const npcHeader = `\n    <div class="npc-section-header">${this.escapeHtml(npcNickname)}</div>`;
         const dialogue = Array.isArray(conv.dialogue) ? conv.dialogue : [];
@@ -259,7 +311,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat History</title>
-  <style>${fontFaceRule}${css}</style>
+  <style>${fontFaceRule}${creditFontFaceRule}${css}</style>
 </head>
 <body>
   <div class="chat-container">${sectionsHtml}${footerHtml}${creditHtml}
@@ -462,7 +514,14 @@ export class ReplayFormatter implements LogFormatterPlugin {
         ? replayConfig.pdfPaperSize
         : undefined;
 
-    const skipRespawn = replayConfig.skipRespawn === true;
+    const skipRespawn = replayConfig.skipRespawn ?? DEFAULT_CONFIG.skipRespawn;
+
+    const creditFontPath = this.sanitizeFontPath(replayConfig.creditFontPath);
+    const creditFontFamily =
+      typeof replayConfig.creditFontFamily === "string" &&
+      replayConfig.creditFontFamily.trim().length > 0
+        ? replayConfig.creditFontFamily
+        : undefined;
 
     return {
       outputFormat: "replay",
@@ -476,6 +535,8 @@ export class ReplayFormatter implements LogFormatterPlugin {
       fontPath,
       pdfPaperSize,
       skipRespawn,
+      creditFontPath,
+      creditFontFamily,
     };
   }
 
