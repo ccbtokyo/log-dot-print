@@ -187,6 +187,15 @@ export class ReplayFormatter implements LogFormatterPlugin {
       white-space: pre-wrap;
       word-wrap: break-word;
     }
+    .artwork-credit {
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 2px solid #ccc;
+      text-align: center;
+      font-weight: bold;
+      font-size: 1.2em;
+      letter-spacing: 0.1em;
+    }
     .npc-section-header {
       font-weight: bold;
       margin-top: 20px;
@@ -221,6 +230,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const playerNickname = payload.playerNickname ?? respawn?.nickname ?? "Player";
 
     const footerHtml = respawn ? this.renderFooterHtml(respawn) : "";
+    const creditHtml = this.renderCreditHtml();
 
     const sectionsHtml = payload.conversations
       .map((conv, index) => {
@@ -252,7 +262,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
   <style>${fontFaceRule}${css}</style>
 </head>
 <body>
-  <div class="chat-container">${sectionsHtml}${footerHtml}
+  <div class="chat-container">${sectionsHtml}${footerHtml}${creditHtml}
   </div>
 </body>
 </html>`;
@@ -351,6 +361,11 @@ export class ReplayFormatter implements LogFormatterPlugin {
     </div>`;
   }
 
+  private renderCreditHtml(): string {
+    return `
+    <div class="artwork-credit">RE:SPAWN READY</div>`;
+  }
+
   private renderAttrBlock(label: string, escapedValue: string): string {
     return `
       <div class="attr-block">
@@ -373,6 +388,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const map: Record<string, string> = {
       male: "男性",
       female: "女性",
+      nonbinary: "ノンバイナリー",
       other: "その他",
     };
     const japanese = map[safeGender.toLowerCase()];

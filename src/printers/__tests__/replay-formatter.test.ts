@@ -281,6 +281,7 @@ describe("ReplayFormatter", () => {
       const genders = [
         { input: "male", expected: "male（男性）" },
         { input: "female", expected: "female（女性）" },
+        { input: "nonbinary", expected: "nonbinary（ノンバイナリー）" },
         { input: "other", expected: "other（その他）" },
       ];
 
@@ -1173,6 +1174,75 @@ describe("ReplayFormatter", () => {
       const html = formatter.format(entry);
 
       expect(html).toContain('class="player-footer"');
+    });
+  });
+
+  describe("artwork credit", () => {
+    test("renders artwork credit section with RE:SPAWN READY", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).toContain('class="artwork-credit"');
+      expect(html).toContain("RE:SPAWN READY");
+    });
+
+    test("renders credit after player-footer", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      const footerPos = html.indexOf('class="player-footer"');
+      const creditPos = html.indexOf('class="artwork-credit"');
+      expect(footerPos).toBeGreaterThan(-1);
+      expect(creditPos).toBeGreaterThan(footerPos);
+    });
+
+    test("renders credit even when skipRespawn is true", async () => {
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: true }));
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain('class="player-footer"');
+      expect(html).toContain('class="artwork-credit"');
+      expect(html).toContain("RE:SPAWN READY");
+    });
+
+    test("renders credit after dialogue when no respawn", async () => {
+      await formatter.initialize(eventBus, createConfig());
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: [
+            {
+              npc: { replay_id: "r1", nickname: "sho" },
+              dialogue: [{ role: "npc", text: "Hello" }],
+            },
+          ],
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).not.toContain('class="player-footer"');
+      expect(html).toContain('class="artwork-credit"');
+      expect(html).toContain("RE:SPAWN READY");
+    });
+
+    test("does not render credit for empty string output (skipRespawn + respawn-only)", async () => {
+      await formatter.initialize(eventBus, createConfig({ skipRespawn: true }));
+
+      const entry = createLogEntry(
+        JSON.stringify({
+          gameplay: [],
+          respawn: { nickname: "Toshi", age: "30s", gender: "male" },
+        }),
+      );
+      const html = formatter.format(entry);
+
+      expect(html).toBe("");
     });
   });
 });
