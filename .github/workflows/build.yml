@@ -38,6 +38,9 @@ jobs:
         run: |
           bun run build
           bun run lint
+      - name: License compliance check
+        if: matrix.os == 'ubuntu-latest'
+        run: bun run license:check
 
   build:
     needs: test

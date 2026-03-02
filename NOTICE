@@ -1,0 +1,16 @@
+log-dot-print
+Copyright (c) 2025-present ccbtokyo (Civic Creative Base Tokyo)
+
+This software includes the following third-party components:
+
+## Fonts
+
+- dartsfont
+  Licensed under the SIL Open Font License, Version 1.1
+  See fonts/SIL_Open_Font_License.txt
+
+## Third-party software licenses
+
+This software uses open-source packages licensed under MIT, Apache-2.0,
+BSD-2-Clause, BSD-3-Clause, ISC, and other permissive licenses.
+Run `bun run license:summary` for a complete list.

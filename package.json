@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "AI Log Printer System for Art Installations",
+  "license": "MIT",
   "bin": {
     "log-dot-print": "./dist/cli.js"
   },
@@ -25,7 +26,9 @@
     "lint:fix": "oxlint --fix src",
     "format": "oxfmt --write src",
     "format:check": "oxfmt --check src",
-    "prepare": "husky"
+    "prepare": "husky",
+    "license:check": "bunx license-checker --onlyAllow 'MIT;MIT*;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;Unlicense;Python-2.0;(AFL-2.1 OR BSD-3-Clause);(MIT AND CC-BY-3.0);CC0-1.0;CC-BY-3.0;CC-BY-4.0' --excludePrivatePackages",
+    "license:summary": "bunx license-checker --summary"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.2.0",
@@ -46,6 +49,7 @@
     "@types/serialport": "^8.0.0",
     "@typescript/native-preview": "^7.0.0-dev.20260129.1",
     "husky": "^9.1.7",
+    "license-checker": "^25.0.1",
     "lint-staged": "^16.2.7",
     "oxfmt": "^0.27.0",
     "oxlint": "^1.42.0",
