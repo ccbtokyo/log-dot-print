@@ -217,7 +217,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     .player-footer {
       margin-top: 24px;
       padding-top: 12px;
-      border-top: 1px solid #000;
+      border-top: 1px solid #ccc;
     }
     .player-footer .attr-block {
       margin-bottom: 12px;
@@ -248,8 +248,8 @@ export class ReplayFormatter implements LogFormatterPlugin {
     .artwork-credit::after {
       content: '';
       display: inline-block;
-      width: 160px;
-      border-top: 2px solid #000;
+      width: 320px;
+      border-top: 2px solid #ccc;
     }
     .npc-section-header {
       font-weight: bold;
@@ -259,7 +259,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     }
     .section-divider {
       border: none;
-      border-top: 1px solid #000;
+      border-top: 1px solid #ccc;
       margin: 32px 0;
     }
     .chat-container {
