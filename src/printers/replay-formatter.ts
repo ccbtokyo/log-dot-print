@@ -233,8 +233,8 @@ export class ReplayFormatter implements LogFormatterPlugin {
       word-wrap: break-word;
     }
     .artwork-credit {
-      margin-top: 64px;
-      margin-bottom: 48px;
+      margin-top: 192px;
+      margin-bottom: 192px;
       text-align: center;
       font-weight: bold;
       font-size: 1.2em;
