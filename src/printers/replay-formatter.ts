@@ -169,8 +169,11 @@ export class ReplayFormatter implements LogFormatterPlugin {
       : "";
 
     const safeCreditFontPath = this.sanitizeFontPath(creditFontPath);
+    // Only apply credit font when a valid non-generic font family was explicitly provided.
+    // sanitizeFontFamilyList() falls back to the default system font stack when input is
+    // entirely invalid, which would cause the credit @font-face to collide with the body font.
     const safeCreditFontFamily = creditFontFamily
-      ? this.sanitizeFontFamilyList(creditFontFamily)
+      ? this.sanitizeCreditFontFamily(creditFontFamily)
       : undefined;
     const creditPrimaryFontFamily = safeCreditFontFamily
       ? this.getPrimaryFontFamily(safeCreditFontFamily)
@@ -514,7 +517,10 @@ export class ReplayFormatter implements LogFormatterPlugin {
         ? replayConfig.pdfPaperSize
         : undefined;
 
-    const skipRespawn = replayConfig.skipRespawn ?? DEFAULT_CONFIG.skipRespawn;
+    const skipRespawn =
+      typeof replayConfig.skipRespawn === "boolean"
+        ? replayConfig.skipRespawn
+        : DEFAULT_CONFIG.skipRespawn;
 
     const creditFontPath = this.sanitizeFontPath(replayConfig.creditFontPath);
     const creditFontFamily =
@@ -604,6 +610,28 @@ export class ReplayFormatter implements LogFormatterPlugin {
 
     if (sanitized.length > 0) return sanitized.join(", ");
     return this.sanitizeFontFamilyList(DEFAULT_CONFIG.fontFamily);
+  }
+
+  /**
+   * Sanitize a credit font family list.
+   * Unlike sanitizeFontFamilyList(), returns undefined when the input contains
+   * no valid non-generic font family names, preventing fallback to the default
+   * system font stack (which would collide with the body font).
+   */
+  private sanitizeCreditFontFamily(fontFamily: string): string | undefined {
+    const parts = fontFamily
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0)
+      .filter((p) => !/[<>]/.test(p));
+
+    const hasNonGeneric = parts.some((part) => {
+      const unquoted = part.replace(/^['"]|['"]$/g, "");
+      return !this.isGenericFontFamily(unquoted.toLowerCase());
+    });
+
+    if (!hasNonGeneric) return undefined;
+    return this.sanitizeFontFamilyList(fontFamily);
   }
 
   private isGenericFontFamily(value: string): boolean {

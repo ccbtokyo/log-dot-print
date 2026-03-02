@@ -1013,6 +1013,20 @@ describe("ReplayFormatter", () => {
       expect(html).toContain("color: #333");
       expect(html).toContain("color: #00ff00");
     });
+
+    test("treats string 'false' for skipRespawn as default (true)", async () => {
+      // JSON config may pass string "false" instead of boolean false
+      await formatter.initialize(
+        eventBus,
+        createConfig({ skipRespawn: "false" as unknown as boolean }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // Non-boolean value should fall back to default (true), so no footer
+      expect(html).not.toContain('class="player-footer"');
+    });
   });
 
   describe("CSS styles", () => {
@@ -1368,6 +1382,24 @@ describe("ReplayFormatter", () => {
       const creditCssMatch = html.match(/\.artwork-credit\s*\{[^}]*\}/);
       expect(creditCssMatch).not.toBeNull();
       expect(creditCssMatch![0]).not.toContain("border-top");
+    });
+
+    test("does not generate credit @font-face when creditFontFamily is invalid (XSS attempt)", async () => {
+      const creditFontPath = resolve(import.meta.dir, "fixtures/test-font.ttf");
+      await formatter.initialize(
+        eventBus,
+        createConfig({
+          creditFontPath,
+          creditFontFamily: "</style><script>alert(1)</script>",
+        }),
+      );
+
+      const entry = createLogEntry(JSON.stringify(createPayload()));
+      const html = formatter.format(entry);
+
+      // Invalid creditFontFamily should not produce a credit @font-face
+      expect(html).not.toContain("@font-face");
+      expect(html).not.toContain("<script>");
     });
   });
 
