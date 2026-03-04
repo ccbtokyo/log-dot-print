@@ -249,7 +249,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       content: '';
       display: inline-block;
       width: 320px;
-      border-top: 2px solid #ccc;
+      border-top: 3px solid #ccc;
     }
     .npc-section-header {
       font-weight: bold;

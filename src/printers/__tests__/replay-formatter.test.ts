@@ -1270,7 +1270,7 @@ describe("ReplayFormatter", () => {
       // CSS pseudo-elements draw the lines
       expect(html).toContain(".artwork-credit::before");
       expect(html).toContain(".artwork-credit::after");
-      expect(html).toMatch(/\.artwork-credit::before[\s\S]*?border-top:\s*2px solid/);
+      expect(html).toMatch(/\.artwork-credit::before[\s\S]*?border-top:\s*3px solid/);
     });
 
     test("renders credit @font-face when creditFontPath is specified", async () => {
