@@ -225,7 +225,12 @@ export class PdfToPrinterPrinter extends BasePrinter {
       if (this.options.bin) printOptions.bin = this.options.bin;
       if (this.options.sumatraPdfPath) printOptions.sumatraPdfPath = this.options.sumatraPdfPath;
 
+      const printStart = Date.now();
+      console.log(
+        `[PdfToPrinter] Submitting to spooler: ${tempFile} (${bytes} bytes, printer=${targetPrinterName})`,
+      );
       await ptpPrint(tempFile, printOptions);
+      console.log(`[PdfToPrinter] Spooler accepted in ${Date.now() - printStart}ms`);
 
       // Persist print file
       await mkdir(this.options.persistDir, { recursive: true });

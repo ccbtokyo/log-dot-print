@@ -112,7 +112,12 @@ async function printPdfWithSumatraPDF(
     printOptions.paperSize = rawPaperSize;
   }
 
+  const printStart = Date.now();
+  console.log(
+    `[NativePrinter] Submitting PDF to spooler via SumatraPDF: ${filePath} (printer=${printerName})`,
+  );
   await ptpPrint(filePath, printOptions);
+  console.log(`[NativePrinter] Spooler accepted in ${Date.now() - printStart}ms`);
 }
 
 /**
