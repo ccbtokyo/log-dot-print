@@ -201,7 +201,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
     const css = `
     @page {
       ${pageSizeRule}
-      margin: 0;
+      margin: 15mm 0;
     }
     * {
       box-sizing: border-box;
@@ -211,7 +211,7 @@ export class ReplayFormatter implements LogFormatterPlugin {
       font-size: ${safeFontSize}pt;
       line-height: 1.6;
       margin: 0;
-      padding: 20px ${safeSideMargin}mm;
+      padding: 0 ${safeSideMargin}mm;
       background: #fff;
     }
     .player-footer {
