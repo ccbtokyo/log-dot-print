@@ -1111,4 +1111,134 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
   });
+
+  describe("simulate mode", () => {
+    const customPersistDir = join(tmpdir(), "log-dot-print-test-simulate");
+
+    beforeEach(async () => {
+      await mkdir(customPersistDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+      await rm(customPersistDir, { recursive: true, force: true });
+      delete process.env.PRINTERS_JS_SIMULATE;
+    });
+
+    test("skips printing but persists file when simulate is true (config)", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+        simulate: true,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("simulate-config-test");
+      await printer.print(job);
+
+      // Should NOT call actual printer
+      expect(mockNamedPrinter.printFile).not.toHaveBeenCalled();
+
+      // Should persist the file
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toContain(customPersistDir);
+      const content = await readFile(job.filePath!, "utf8");
+      expect(content).toBe(job.formattedContent);
+
+      await printer.shutdown();
+    });
+
+    test("skips SumatraPDF printing but persists file when simulate is true (Windows PDF)", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+        simulate: true,
+      });
+      await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
+
+      const job: PrintJob = {
+        id: "simulate-pdf-test",
+        logEntry: {
+          id: "simulate-pdf-test",
+          timestamp: new Date().toISOString(),
+          level: "info",
+          source: "test",
+          message: "Test",
+          printed: false,
+        },
+        formattedContent: "",
+        createdAt: new Date(),
+        status: "pending",
+        retryCount: 0,
+        contentType: "pdf",
+        binaryContent: Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]),
+      };
+      await printer.print(job);
+
+      // Should NOT call SumatraPDF
+      expect(mockPrint).not.toHaveBeenCalled();
+
+      // Should persist the file
+      expect(job.filePath).toBeDefined();
+      expect(job.filePath).toContain(".pdf");
+
+      await printer.shutdown();
+    });
+
+    test("respects PRINTERS_JS_SIMULATE env var", async () => {
+      process.env.PRINTERS_JS_SIMULATE = "true";
+
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("simulate-env-test");
+      await printer.print(job);
+
+      // Should NOT call actual printer
+      expect(mockNamedPrinter.printFile).not.toHaveBeenCalled();
+
+      // Should persist the file
+      expect(job.filePath).toBeDefined();
+
+      await printer.shutdown();
+    });
+
+    test("env var overrides config simulate=false", async () => {
+      process.env.PRINTERS_JS_SIMULATE = "true";
+
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+        simulate: false,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("simulate-env-override-test");
+      await printer.print(job);
+
+      expect(mockNamedPrinter.printFile).not.toHaveBeenCalled();
+      expect(job.filePath).toBeDefined();
+
+      await printer.shutdown();
+    });
+
+    test("prints normally when simulate is false and env not set", async () => {
+      const printer = new NativePrinter({
+        printerName: "EPSON_PX1VL",
+        persistDir: customPersistDir,
+        simulate: false,
+      });
+      await printer.initialize(eventBus, config);
+
+      const job = createTestPrintJob("no-simulate-test");
+      await printer.print(job);
+
+      expect(mockNamedPrinter.printFile).toHaveBeenCalledTimes(1);
+
+      await printer.shutdown();
+    });
+  });
 });

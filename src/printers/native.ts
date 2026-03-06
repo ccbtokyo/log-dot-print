@@ -234,6 +234,8 @@ export interface NativePrinterOptions {
   paperKind?: number;
   /** Custom path to SumatraPDF executable (Windows only, requires 3.5+ for disable-auto-rotation) */
   sumatraPdfPath?: string;
+  /** Simulate mode: skip actual printing but still persist files (env: PRINTERS_JS_SIMULATE) */
+  simulate?: boolean;
   /** Directory to persist print files for later download (default: ./data/prints) */
   persistDir?: string;
   /** Callback to get the current printer name from storage */
@@ -312,6 +314,7 @@ export class NativePrinter extends BasePrinter {
       typeof options.sumatraPdfPath === "string" && options.sumatraPdfPath.trim()
         ? options.sumatraPdfPath.trim()
         : undefined;
+    const simulate = typeof options.simulate === "boolean" ? options.simulate : false;
     const persistDir =
       typeof options.persistDir === "string" && options.persistDir.trim()
         ? options.persistDir.trim()
@@ -328,6 +331,7 @@ export class NativePrinter extends BasePrinter {
       bin,
       paperKind,
       sumatraPdfPath,
+      simulate,
       persistDir,
     };
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
@@ -489,8 +493,14 @@ export class NativePrinter extends BasePrinter {
         ? { ...this.options, paperKind: resolvedPaperKind }
         : this.options;
 
-      // Print the file
-      if (this.isWindowsPlatform() && job.contentType === "pdf") {
+      // Check simulate mode: env var overrides config
+      const isSimulate =
+        process.env.PRINTERS_JS_SIMULATE === "true" || this.options.simulate === true;
+
+      // Print the file (skip in simulate mode)
+      if (isSimulate) {
+        console.log(`[NativePrinter] Simulate mode: skipping actual print for ${job.id}`);
+      } else if (this.isWindowsPlatform() && job.contentType === "pdf") {
         // Windows + PDF: delegate to SumatraPDF via pdf-to-printer.
         // Avoids the RAW datatype issue where PDF binary is sent directly
         // to the printer, causing metadata like %PDF-1.4 to be printed as text.

@@ -65,6 +65,7 @@ async function main(): Promise<void> {
   const envHost = process.env.HOST;
   const envPrinterType = process.env.PRINTER_TYPE;
   const envPrinterName = process.env.PRINTER_NAME;
+  const envSimulate = process.env.PRINTERS_JS_SIMULATE === "true";
 
   // Build config with CLI overrides (priority: CLI > env > file config)
   const config: DeepPartial<SystemConfig> = {
@@ -83,6 +84,7 @@ async function main(): Promise<void> {
       options: {
         ...fileConfig.printer?.options,
         ...(envPrinterName && { printerName: envPrinterName }),
+        ...(envSimulate && { simulate: true }),
       },
     },
   };
