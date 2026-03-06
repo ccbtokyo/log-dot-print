@@ -6,8 +6,8 @@
  *          src/core/types.ts (PrintJob, PrinterType, PrinterStatus)
  */
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
+import { copyFile, mkdir, mkdtemp, rm, writeFile, access, stat } from "node:fs/promises";
 
 import { BasePrinter } from "./base-printer.js";
 import {
@@ -39,6 +39,87 @@ async function loadPrintersModule(): Promise<PrintersModule> {
  * Default directory for persisting print files
  */
 const DEFAULT_PERSIST_DIR = "./data/prints";
+
+/**
+ * SumatraPDF version and download URL.
+ * Version 3.5+ is required for the `disable-auto-rotation` print setting.
+ */
+const SUMATRA_VERSION = "3.5.2";
+const SUMATRA_DOWNLOAD_URL = `https://www.sumatrapdfreader.org/dl/rel/${SUMATRA_VERSION}/SumatraPDF-${SUMATRA_VERSION}-64.zip`;
+const SUMATRA_DEFAULT_DIR = "./bin";
+const SUMATRA_EXE_NAME = `SumatraPDF-${SUMATRA_VERSION}-64.exe`;
+
+/**
+ * Ensure SumatraPDF 3.5+ is available locally.
+ * Downloads and extracts the portable exe if not found.
+ * @returns Absolute path to the SumatraPDF executable
+ */
+async function ensureSumatraPdf(customPath?: string): Promise<string> {
+  // Use custom path if provided and exists
+  if (customPath) {
+    try {
+      await access(customPath);
+      console.log(`[NativePrinter] Using custom SumatraPDF: ${customPath}`);
+      return customPath;
+    } catch {
+      console.warn(`[NativePrinter] Custom SumatraPDF not found: ${customPath}, will download`);
+    }
+  }
+
+  // Check default location
+  const defaultPath = join(SUMATRA_DEFAULT_DIR, SUMATRA_EXE_NAME);
+  try {
+    await access(defaultPath);
+    console.log(`[NativePrinter] SumatraPDF ${SUMATRA_VERSION} found: ${defaultPath}`);
+    return defaultPath;
+  } catch {
+    // Not found, download
+  }
+
+  console.log(`[NativePrinter] Downloading SumatraPDF ${SUMATRA_VERSION}...`);
+  await mkdir(SUMATRA_DEFAULT_DIR, { recursive: true });
+
+  const response = await fetch(SUMATRA_DOWNLOAD_URL);
+  if (!response.ok) {
+    throw new Error(`Failed to download SumatraPDF: ${response.status} ${response.statusText}`);
+  }
+
+  const zipBuffer = Buffer.from(await response.arrayBuffer());
+  const tempZip = join(SUMATRA_DEFAULT_DIR, `sumatra-${SUMATRA_VERSION}.zip`);
+  await writeFile(tempZip, zipBuffer);
+
+  // Extract using Bun.spawn (tar can handle zip on Windows with PowerShell)
+  const proc = Bun.spawn(
+    [
+      "powershell",
+      "-Command",
+      `Expand-Archive -Path '${tempZip}' -DestinationPath '${SUMATRA_DEFAULT_DIR}' -Force`,
+    ],
+    { stdout: "pipe", stderr: "pipe" },
+  );
+  const [exitCode, , stderr] = await Promise.all([
+    proc.exited,
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  // Clean up zip
+  await rm(tempZip, { force: true });
+
+  if (exitCode !== 0) {
+    throw new Error(`Failed to extract SumatraPDF: ${stderr}`);
+  }
+
+  // Verify the exe exists
+  try {
+    await access(defaultPath);
+  } catch {
+    throw new Error(`SumatraPDF exe not found after extraction: ${defaultPath}`);
+  }
+
+  console.log(`[NativePrinter] SumatraPDF ${SUMATRA_VERSION} downloaded to ${defaultPath}`);
+  return defaultPath;
+}
 
 /**
  * Get file extension based on content type
@@ -98,6 +179,7 @@ async function printPdfWithSumatraPDF(
     // pipeline. Sending "portrait" overrides bPrintPortrait=true, preventing this
     // unwanted rotation while the driver still provides a landscape-width DC.
     orientation: "portrait",
+    sumatraPdfPath: options.sumatraPdfPath,
   };
   if (options.duplex) {
     printOptions.side = "duplex";
@@ -152,6 +234,8 @@ export interface NativePrinterOptions {
   bin?: string;
   /** Windows DEVMODE dmPaperSize number (SumatraPDF paperkind= parameter, Windows only) */
   paperKind?: number;
+  /** Custom path to SumatraPDF executable (Windows only, requires 3.5+ for disable-auto-rotation) */
+  sumatraPdfPath?: string;
   /** Directory to persist print files for later download (default: ./data/prints) */
   persistDir?: string;
   /** Callback to get the current printer name from storage */
@@ -188,6 +272,7 @@ export class NativePrinter extends BasePrinter {
   private options: NativePrinterInternalOptions;
   private printer: Printer | null = null;
   private printerAvailable = false;
+  private resolvedSumatraPdfPath: string | undefined;
   private getPrinterNameFromStorage?: () => Promise<string | null>;
   private getPaperSizeFromStorage?: () => Promise<string | null>;
   private getPaperKindFromStorage?: () => Promise<number | null>;
@@ -225,6 +310,10 @@ export class NativePrinter extends BasePrinter {
       options.paperKind > 0
         ? options.paperKind
         : undefined;
+    const sumatraPdfPath =
+      typeof options.sumatraPdfPath === "string" && options.sumatraPdfPath.trim()
+        ? options.sumatraPdfPath.trim()
+        : undefined;
     const persistDir =
       typeof options.persistDir === "string" && options.persistDir.trim()
         ? options.persistDir.trim()
@@ -240,6 +329,7 @@ export class NativePrinter extends BasePrinter {
       fitToPage,
       bin,
       paperKind,
+      sumatraPdfPath,
       persistDir,
     };
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
@@ -270,6 +360,16 @@ export class NativePrinter extends BasePrinter {
       } else {
         this.printerAvailable = false;
         console.warn("[NativePrinter] No default printer available - running in degraded mode");
+      }
+    }
+
+    // On Windows, ensure SumatraPDF 3.5+ is available for disable-auto-rotation support
+    if (this.isWindowsPlatform()) {
+      try {
+        this.resolvedSumatraPdfPath = await ensureSumatraPdf(this.options.sumatraPdfPath);
+      } catch (error) {
+        console.warn("[NativePrinter] Failed to ensure SumatraPDF 3.5+:", error);
+        console.warn("[NativePrinter] Falling back to pdf-to-printer bundled SumatraPDF (3.4.6)");
       }
     }
   }
@@ -397,7 +497,11 @@ export class NativePrinter extends BasePrinter {
         // Avoids the RAW datatype issue where PDF binary is sent directly
         // to the printer, causing metadata like %PDF-1.4 to be printed as text.
         // Pass raw paper name — CUPS normalization does not apply here.
-        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, effectiveOptions, resolved);
+        // Use resolved SumatraPDF path (3.5+) if available
+        const optionsWithSumatra = this.resolvedSumatraPdfPath
+          ? { ...effectiveOptions, sumatraPdfPath: this.resolvedSumatraPdfPath }
+          : effectiveOptions;
+        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, optionsWithSumatra, resolved);
       } else {
         // Normalize paper size for CUPS / @printers/printers path
         if (resolved) {

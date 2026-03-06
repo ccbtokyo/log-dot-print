@@ -459,8 +459,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -476,8 +476,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -498,8 +498,8 @@ describe("NativePrinter", () => {
         landscape: true,
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -517,8 +517,8 @@ describe("NativePrinter", () => {
         duplex: true,
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -535,8 +535,8 @@ describe("NativePrinter", () => {
         fitToPage: true,
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -553,8 +553,8 @@ describe("NativePrinter", () => {
         fitToPage: false,
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -570,8 +570,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createTestPrintJob();
       await printer.print(job);
@@ -587,8 +587,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createTestPrintJob("image-test");
       job.contentType = "image";
@@ -635,8 +635,8 @@ describe("NativePrinter", () => {
         persistDir: customPersistDir,
         getPrinterNameFromStorage: async () => "Storage_Printer",
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -652,8 +652,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob("persist-pdf-test");
       await printer.print(job);
@@ -679,8 +679,8 @@ describe("NativePrinter", () => {
         paperSize: "15x11",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -705,8 +705,8 @@ describe("NativePrinter", () => {
         paperSize: "Fanfold 15 x 11 1/2 inch",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -722,8 +722,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -740,8 +740,8 @@ describe("NativePrinter", () => {
         bin: "1",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -757,8 +757,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -775,8 +775,8 @@ describe("NativePrinter", () => {
         paperKind: 261,
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -794,8 +794,8 @@ describe("NativePrinter", () => {
         paperKind: 120,
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -814,8 +814,8 @@ describe("NativePrinter", () => {
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -833,8 +833,8 @@ describe("NativePrinter", () => {
         persistDir: customPersistDir,
         getPaperKindFromStorage: async () => 261,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -852,8 +852,8 @@ describe("NativePrinter", () => {
         persistDir: customPersistDir,
         getPaperKindFromStorage: async () => null,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -870,8 +870,8 @@ describe("NativePrinter", () => {
         persistDir: customPersistDir,
         getPaperKindFromStorage: async () => null,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
@@ -888,8 +888,8 @@ describe("NativePrinter", () => {
         paperSize: "Custom.11x15.5in",
         persistDir: customPersistDir,
       });
-      enableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      enableWindowsPlatform(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
