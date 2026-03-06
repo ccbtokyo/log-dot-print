@@ -482,15 +482,15 @@ describe("NativePrinter", () => {
       expect(s).not.toContain("noscale");
     });
 
-    test("does not include color or monochrome", () => {
+    test("includes monochrome when color is false", () => {
       const s = buildSumatraSettings(defaultOptions());
-      expect(s).not.toContain("color");
-      expect(s).not.toContain("monochrome");
+      expect(s).toContain("monochrome");
+      expect(s).not.toMatch(/,color,/);
     });
 
-    test("does not include color even when color option is true", () => {
+    test("includes color when color is true", () => {
       const s = buildSumatraSettings({ ...defaultOptions(), color: true });
-      expect(s).not.toContain("color");
+      expect(s).toContain("color");
       expect(s).not.toContain("monochrome");
     });
 
@@ -553,7 +553,7 @@ describe("NativePrinter", () => {
 
     test("full default settings string", () => {
       const s = buildSumatraSettings(defaultOptions());
-      expect(s).toBe("disable-auto-rotation,noscale,1x");
+      expect(s).toBe("disable-auto-rotation,noscale,monochrome,1x");
     });
   });
 

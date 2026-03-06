@@ -165,9 +165,9 @@ export function buildSumatraSettings(
   // Scale
   settings.push(options.fitToPage ? "fit" : "noscale");
 
-  // Do NOT send color/monochrome — setting DEVMODE dmColor explicitly
-  // causes 50% width compression on some EPSON ESC/P drivers (no2, no3).
-  // Let the driver use its own default.
+  // Color / monochrome — must match the driver's color setting.
+  // Omitting this causes coarse resolution when the driver is set to color mode.
+  settings.push(options.color ? "color" : "monochrome");
 
   // Copies
   const copies = options.copies ?? 1;
