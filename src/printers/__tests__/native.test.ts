@@ -485,14 +485,14 @@ describe("NativePrinter", () => {
       const [, printOptions] = mockPrint.mock.calls[0];
       expect(printOptions.printer).toBe("EPSON_PX1VL");
       expect(printOptions.monochrome).toBe(true);
-      // orientation is NOT sent — SumatraPDF auto-detects from PDF page size
-      expect(printOptions.orientation).toBeUndefined();
+      // portrait is always sent to prevent SumatraPDF's landscape rotation
+      expect(printOptions.orientation).toBe("portrait");
       expect(printOptions.silent).toBe(true);
 
       await printer.shutdown();
     });
 
-    test("sends disable-auto-rotation instead of orientation", async () => {
+    test("sends disable-auto-rotation and portrait to SumatraPDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         landscape: true,
@@ -505,7 +505,7 @@ describe("NativePrinter", () => {
       await printer.print(job);
 
       const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.orientation).toBeUndefined();
+      expect(printOptions.orientation).toBe("portrait");
       expect(printOptions.pages).toBe("disable-auto-rotation");
 
       await printer.shutdown();

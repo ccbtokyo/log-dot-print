@@ -92,6 +92,12 @@ async function printPdfWithSumatraPDF(
     // "disable-auto-rotation" is passed via the `pages` field since pdf-to-printer
     // does not expose this SumatraPDF option directly.
     pages: "disable-auto-rotation",
+    // SumatraPDF does NOT modify DEVMODE dmOrientation — the driver default controls
+    // the DC (device context) dimensions. When the driver is set to landscape,
+    // SumatraPDF sees bPrintPortrait=false and applies +90° rotation in its render
+    // pipeline. Sending "portrait" overrides bPrintPortrait=true, preventing this
+    // unwanted rotation while the driver still provides a landscape-width DC.
+    orientation: "portrait",
   };
   if (options.duplex) {
     printOptions.side = "duplex";
@@ -117,6 +123,7 @@ async function printPdfWithSumatraPDF(
   console.log(
     `[NativePrinter] Submitting PDF to spooler via SumatraPDF: ${filePath} (printer=${printerName})`,
   );
+  console.log(`[NativePrinter] SumatraPDF options: ${JSON.stringify(printOptions)}`);
   await ptpPrint(filePath, printOptions);
   console.log(`[NativePrinter] Spooler accepted in ${Date.now() - printStart}ms`);
 }
