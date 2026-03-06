@@ -490,8 +490,11 @@ Write-Host ([DevModeFixer]::Fix('${printerName}'))
     for (const line of stdout.trim().split("\n").filter(Boolean)) {
       console.log(`[NativePrinter] ${line.trim()}`);
     }
-    if (exitCode !== 0 && stderr.trim()) {
-      console.warn(`[NativePrinter] DPI fix failed: ${stderr.trim()}`);
+    if (stderr.trim()) {
+      console.warn(`[NativePrinter] DPI fix stderr: ${stderr.trim()}`);
+    }
+    if (exitCode !== 0) {
+      console.warn(`[NativePrinter] DPI fix exited with code ${exitCode}`);
     }
   }
 
