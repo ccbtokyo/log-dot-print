@@ -377,7 +377,12 @@ export class NativePrinter extends BasePrinter {
   /**
    * Ensure the printer has symmetric DPI (e.g. 180x180).
    * Session 0 may have asymmetric defaults (360x180) causing 50% width
-   * compression in SumatraPDF. Set-PrintConfiguration persists the fix.
+   * compression in SumatraPDF. Modifies both the raw DEVMODE blob
+   * (PageDevmodeSnapshot) and the structured PrintTicket XML fields.
+   *
+   * DEVMODE structure offsets:
+   *   90 (0x5A): dmPrintQuality (Int16) = X DPI
+   *   96 (0x60): dmYResolution  (Int16) = Y DPI
    */
   private async ensureSymmetricDpi(printerName: string): Promise<void> {
     const psCommand = `
@@ -386,18 +391,34 @@ export class NativePrinter extends BasePrinter {
       $nsm = New-Object Xml.XmlNamespaceManager($ticket.NameTable)
       $nsm.AddNamespace('psf','http://schemas.microsoft.com/windows/2003/08/printing/printschemaframework')
       $nsm.AddNamespace('psk','http://schemas.microsoft.com/windows/2003/08/printing/printschemakeywords')
+
+      # Read DPI from the raw DEVMODE blob (driver source of truth)
+      $snap = $ticket.SelectSingleNode("//psf:ParameterInit[contains(@name,'DevmodeSnapshot')]/psf:Value", $nsm)
+      if (-not $snap) { Write-Host 'No DevmodeSnapshot found'; return }
+      $bytes = [Convert]::FromBase64String($snap.InnerText)
+      $xDpi = [BitConverter]::ToInt16($bytes, 90)
+      $yDpi = [BitConverter]::ToInt16($bytes, 96)
+      Write-Host "DEVMODE DPI: $($xDpi)x$($yDpi)"
+
+      if ($xDpi -eq $yDpi -or $xDpi -le 0 -or $yDpi -le 0) { return }
+
+      $target = [Math]::Min($xDpi, $yDpi)
+      Write-Host "Fixing: $($xDpi)x$($yDpi) -> $($target)x$($target)"
+
+      # Patch the DEVMODE blob
+      $tb = [BitConverter]::GetBytes([Int16]$target)
+      $tb.CopyTo($bytes, 90)   # dmPrintQuality
+      $tb.CopyTo($bytes, 96)   # dmYResolution
+      $snap.InnerText = [Convert]::ToBase64String($bytes)
+
+      # Also patch the structured XML fields
       $xNode = $ticket.SelectSingleNode("//psf:Feature[@name='psk:PageResolution']//psf:ScoredProperty[@name='psk:ResolutionX']/psf:Value", $nsm)
       $yNode = $ticket.SelectSingleNode("//psf:Feature[@name='psk:PageResolution']//psf:ScoredProperty[@name='psk:ResolutionY']/psf:Value", $nsm)
-      if ($xNode -and $yNode) {
-        $x = [int]$xNode.InnerText; $y = [int]$yNode.InnerText
-        Write-Host "DPI: $($x)x$($y)"
-        if ($x -ne $y) {
-          $target = [Math]::Min($x,$y)
-          $xNode.InnerText = "$target"; $yNode.InnerText = "$target"
-          Set-PrintConfiguration -PrinterName '${printerName}' -PrintTicketXml $ticket.OuterXml -ErrorAction Stop
-          Write-Host "Fixed: $($x)x$($y) -> $($target)x$($target)"
-        }
-      }
+      if ($xNode) { $xNode.InnerText = "$target" }
+      if ($yNode) { $yNode.InnerText = "$target" }
+
+      Set-PrintConfiguration -PrinterName '${printerName}' -PrintTicketXml $ticket.OuterXml -ErrorAction Stop
+      Write-Host "Fixed: $($xDpi)x$($yDpi) -> $($target)x$($target)"
     `;
     const proc = Bun.spawn(
       ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand],
