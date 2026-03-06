@@ -361,6 +361,48 @@ export class NativePrinter extends BasePrinter {
         console.warn("[NativePrinter] Failed to ensure SumatraPDF 3.5+:", error);
         console.warn("[NativePrinter] Falling back to pdf-to-printer bundled SumatraPDF (3.4.6)");
       }
+
+      // Dump DEVMODE for debugging Session 0 vs interactive differences
+      if (this.printer) {
+        this.dumpDevmode(this.printer.name).catch((err) =>
+          console.warn("[NativePrinter] DEVMODE dump failed:", err),
+        );
+      }
+    }
+  }
+
+  /**
+   * Dump printer DEVMODE via PowerShell for debugging Session 0 differences.
+   */
+  private async dumpDevmode(printerName: string): Promise<void> {
+    const scriptPath = join(process.cwd(), "scripts", "debug-devmode.ps1");
+    const proc = Bun.spawn(
+      [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        scriptPath,
+        "-PrinterName",
+        printerName,
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const [, stdout, stderr] = await Promise.all([
+      proc.exited,
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    if (stdout.trim()) {
+      for (const line of stdout.trim().split("\n")) {
+        console.log(`[DEVMODE] ${line.trimEnd()}`);
+      }
+    }
+    if (stderr.trim()) {
+      for (const line of stderr.trim().split("\n")) {
+        console.warn(`[DEVMODE] ${line.trimEnd()}`);
+      }
     }
   }
 
