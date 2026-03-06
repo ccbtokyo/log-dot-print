@@ -86,12 +86,13 @@ async function printPdfWithSumatraPDF(
     copies: options.copies,
     monochrome: !options.color,
     scale: options.fitToPage ? "fit" : "noscale",
+    // SumatraPDF auto-rotates pages when PDF width > height (autoRotate=true by default).
+    // For landscape-oriented paper (e.g. 15x11 fan-fold), this causes unwanted 90°/270°
+    // rotation because the PDF is already laid out in the correct orientation.
+    // "disable-auto-rotation" is passed via the `pages` field since pdf-to-printer
+    // does not expose this SumatraPDF option directly.
+    pages: "disable-auto-rotation",
   };
-  // orientation 未指定 → SumatraPDF が PDF ページサイズから自動判定。
-  // "portrait" を常に送ると 15x11 等の横長用紙で width 圧縮が発生する。
-  if (options.landscape) {
-    printOptions.orientation = "landscape";
-  }
   if (options.duplex) {
     printOptions.side = "duplex";
   }

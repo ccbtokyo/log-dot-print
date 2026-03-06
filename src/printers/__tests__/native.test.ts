@@ -492,7 +492,7 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
-    test("maps landscape option to orientation", async () => {
+    test("sends disable-auto-rotation instead of orientation", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         landscape: true,
@@ -505,7 +505,8 @@ describe("NativePrinter", () => {
       await printer.print(job);
 
       const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.orientation).toBe("landscape");
+      expect(printOptions.orientation).toBeUndefined();
+      expect(printOptions.pages).toBe("disable-auto-rotation");
 
       await printer.shutdown();
     });
