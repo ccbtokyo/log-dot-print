@@ -5,14 +5,13 @@ import {
   mockGetPrinterByName,
   resetPrinterMocks,
 } from "./printers-mock.js";
-import { mockPrint, resetPdfToPrinterMocks } from "./pdf-to-printer-mock.js";
 
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stat, rm, mkdir, readFile } from "node:fs/promises";
 
-import { NativePrinter } from "../native.js";
+import { NativePrinter, buildSumatraSettings } from "../native.js";
 import { TypedEventEmitter } from "../../core/events.js";
 import type { PrintJob, SystemConfig } from "../../core/types.js";
 
@@ -28,6 +27,23 @@ function enableWindowsPlatform(printer: NativePrinter): void {
 function disableWindowsPlatform(printer: NativePrinter): void {
   // biome-ignore lint/suspicious/noExplicitAny: test-only override of private method
   (printer as any).isWindowsPlatform = () => false;
+}
+
+/**
+ * Mock SumatraPDF printing on a NativePrinter instance.
+ * Returns an array that captures [filePath, printerName, options, rawPaperSize] for each call.
+ */
+function mockSumatraPrint(
+  printer: NativePrinter,
+): Array<[string, string, unknown, string | undefined]> {
+  const calls: Array<[string, string, unknown, string | undefined]> = [];
+  // biome-ignore lint/suspicious/noExplicitAny: test-only override of protected method
+  (printer as any).printPdfViaSumatraPDF = mock(
+    async (filePath: string, printerName: string, options: unknown, rawPaperSize?: string) => {
+      calls.push([filePath, printerName, options, rawPaperSize]);
+    },
+  );
+  return calls;
 }
 
 // Test fixtures
@@ -71,7 +87,6 @@ describe("NativePrinter", () => {
     eventBus = new TypedEventEmitter();
     config = createTestConfig();
     resetPrinterMocks();
-    resetPdfToPrinterMocks();
   });
 
   describe("constructor", () => {
@@ -423,6 +438,123 @@ describe("NativePrinter", () => {
     });
   });
 
+  describe("buildSumatraSettings", () => {
+    function defaultOptions(): Parameters<typeof buildSumatraSettings>[0] {
+      return {
+        printerName: "EPSON_PX1VL",
+        copies: 1,
+        duplex: false,
+        color: false,
+        landscape: false,
+        fitToPage: false,
+        quality: "normal",
+        simulate: false,
+        persistDir: "./data/prints",
+      };
+    }
+
+    test("includes disable-auto-rotation by default", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).toContain("disable-auto-rotation");
+    });
+
+    test("does not include landscape when landscape is false", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).not.toContain("landscape");
+    });
+
+    test("includes landscape when landscape is true", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), landscape: true });
+      expect(s).toContain("landscape");
+      // Both must be present (sumatrapdfreader/sumatrapdf#2353)
+      expect(s).toContain("disable-auto-rotation");
+    });
+
+    test("includes noscale when fitToPage is false", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).toContain("noscale");
+      expect(s).not.toContain("fit");
+    });
+
+    test("includes fit when fitToPage is true", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), fitToPage: true });
+      expect(s).toContain(",fit,");
+    });
+
+    test("includes monochrome when color is false", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).toContain("monochrome");
+    });
+
+    test("includes color when color is true", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), color: true });
+      expect(s).toContain("color");
+      expect(s).not.toContain("monochrome");
+    });
+
+    test("includes copies", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), copies: 3 });
+      expect(s).toContain("3x");
+    });
+
+    test("defaults to 1x copies", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).toContain("1x");
+    });
+
+    test("includes duplex when enabled", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), duplex: true });
+      expect(s).toContain("duplex");
+    });
+
+    test("does not include duplex when disabled", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).not.toContain("duplex");
+    });
+
+    test("includes bin when configured", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), bin: "1" });
+      expect(s).toContain("bin=1");
+    });
+
+    test("does not include bin when not configured", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).not.toContain("bin=");
+    });
+
+    test("includes paperkind when configured", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), paperKind: 261 });
+      expect(s).toContain("paperkind=261");
+    });
+
+    test("does not include paperkind when not configured", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).not.toContain("paperkind=");
+    });
+
+    test("includes paper= from rawPaperSize when no paperKind", () => {
+      const s = buildSumatraSettings(defaultOptions(), "15x11");
+      expect(s).toContain("paper=15x11");
+    });
+
+    test("paperkind takes precedence over rawPaperSize", () => {
+      const s = buildSumatraSettings({ ...defaultOptions(), paperKind: 120 }, "15x11");
+      expect(s).toContain("paperkind=120");
+      expect(s).not.toContain("paper=");
+    });
+
+    test("skips Custom.* CUPS format paper name", () => {
+      const s = buildSumatraSettings(defaultOptions(), "Custom.11x15.5in");
+      expect(s).not.toContain("paper=");
+      expect(s).not.toContain("Custom");
+    });
+
+    test("full default settings string", () => {
+      const s = buildSumatraSettings(defaultOptions());
+      expect(s).toBe("disable-auto-rotation,noscale,monochrome,1x");
+    });
+  });
+
   describe("Windows PDF fallback", () => {
     const customPersistDir = join(tmpdir(), "log-dot-print-test-win-pdf");
 
@@ -454,116 +586,38 @@ describe("NativePrinter", () => {
       await rm(customPersistDir, { recursive: true, force: true });
     });
 
-    test("uses pdf-to-printer when Windows and PDF", async () => {
+    test("uses SumatraPDF when Windows and PDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      expect(mockPrint).toHaveBeenCalledTimes(1);
+      expect(calls).toHaveLength(1);
       expect(mockNamedPrinter.printFile).not.toHaveBeenCalled();
 
       await printer.shutdown();
     });
 
-    test("sends disable-auto-rotation without orientation in portrait mode (default)", async () => {
+    test("passes correct printer name to SumatraPDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         persistDir: customPersistDir,
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.printer).toBe("EPSON_PX1VL");
-      expect(printOptions.monochrome).toBe(true);
-      expect(printOptions.silent).toBe(true);
-      // Portrait: disable-auto-rotation only, no orientation
-      expect(printOptions.pages).toBe("disable-auto-rotation");
-      expect(printOptions.orientation).toBeUndefined();
-
-      await printer.shutdown();
-    });
-
-    test("sends both orientation=landscape and disable-auto-rotation when landscape is true", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        landscape: true,
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      // Landscape: both orientation AND disable-auto-rotation
-      // (sumatrapdfreader/sumatrapdf#2353)
-      expect(printOptions.orientation).toBe("landscape");
-      expect(printOptions.pages).toBe("disable-auto-rotation");
-
-      await printer.shutdown();
-    });
-
-    test("maps duplex option to side", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        duplex: true,
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.side).toBe("duplex");
-
-      await printer.shutdown();
-    });
-
-    test("maps fitToPage option to scale", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        fitToPage: true,
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.scale).toBe("fit");
-
-      await printer.shutdown();
-    });
-
-    test("uses noscale when fitToPage is false", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        fitToPage: false,
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.scale).toBe("noscale");
+      const [, printerName] = calls[0];
+      expect(printerName).toBe("EPSON_PX1VL");
 
       await printer.shutdown();
     });
@@ -575,12 +629,13 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createTestPrintJob();
       await printer.print(job);
 
       expect(mockNamedPrinter.printFile).toHaveBeenCalledTimes(1);
-      expect(mockPrint).not.toHaveBeenCalled();
+      expect(calls).toHaveLength(0);
 
       await printer.shutdown();
     });
@@ -592,6 +647,7 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createTestPrintJob("image-test");
       job.contentType = "image";
@@ -599,7 +655,7 @@ describe("NativePrinter", () => {
       await printer.print(job);
 
       expect(mockNamedPrinter.printFile).toHaveBeenCalledTimes(1);
-      expect(mockPrint).not.toHaveBeenCalled();
+      expect(calls).toHaveLength(0);
 
       await printer.shutdown();
     });
@@ -611,12 +667,13 @@ describe("NativePrinter", () => {
       });
       disableWindowsPlatform(printer);
       await printer.initialize(eventBus, config);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
       expect(mockNamedPrinter.printFile).toHaveBeenCalledTimes(1);
-      expect(mockPrint).not.toHaveBeenCalled();
+      expect(calls).toHaveLength(0);
 
       await printer.shutdown();
     });
@@ -640,12 +697,13 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.printer).toBe("Storage_Printer");
+      const [, printerName] = calls[0];
+      expect(printerName).toBe("Storage_Printer");
 
       await printer.shutdown();
     });
@@ -657,6 +715,7 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      mockSumatraPrint(printer);
 
       const job = createPdfPrintJob("persist-pdf-test");
       await printer.print(job);
@@ -672,11 +731,7 @@ describe("NativePrinter", () => {
       await printer.shutdown();
     });
 
-    test("passes configured paper size directly to SumatraPDF", async () => {
-      const warnSpy = mock(() => {});
-      const origWarn = console.warn;
-      console.warn = warnSpy;
-
+    test("passes rawPaperSize to SumatraPDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         paperSize: "15x11",
@@ -684,95 +739,18 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      // Raw paper name is passed through without normalization
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperSize).toBe("15x11");
-
-      // CUPS normalization warning must NOT fire for Windows PDF path
-      const paperSizeWarnings = warnSpy.mock.calls.filter(
-        (args) => typeof args[0] === "string" && args[0].includes("[PaperSize]"),
-      );
-      expect(paperSizeWarnings).toHaveLength(0);
-      console.warn = origWarn;
+      const [, , , rawPaperSize] = calls[0];
+      expect(rawPaperSize).toBe("15x11");
 
       await printer.shutdown();
     });
 
-    test("passes Windows fanfold paper name to SumatraPDF", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        paperSize: "Fanfold 15 x 11 1/2 inch",
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperSize).toBe("Fanfold 15 x 11 1/2 inch");
-
-      await printer.shutdown();
-    });
-
-    test("does not set paperSize on SumatraPDF when not configured", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperSize).toBeUndefined();
-
-      await printer.shutdown();
-    });
-
-    test("passes configured bin to SumatraPDF", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        bin: "1",
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.bin).toBe("1");
-
-      await printer.shutdown();
-    });
-
-    test("does not set bin on SumatraPDF when not configured", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.bin).toBeUndefined();
-
-      await printer.shutdown();
-    });
-
-    test("passes configured paperKind to SumatraPDF", async () => {
+    test("passes paperKind in options to SumatraPDF", async () => {
       const printer = new NativePrinter({
         printerName: "EPSON_PX1VL",
         paperKind: 261,
@@ -780,51 +758,14 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperKind).toBe(261);
-
-      await printer.shutdown();
-    });
-
-    test("does not send paperSize when paperKind is configured", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        paperSize: "15x11",
-        paperKind: 120,
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      // paperKind sets dmPaperSize directly — paper= must NOT be sent
-      // to avoid SumatraPDF resolving an incorrect render size
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperKind).toBe(120);
-      expect(printOptions.paperSize).toBeUndefined();
-
-      await printer.shutdown();
-    });
-
-    test("does not set paperKind on SumatraPDF when not configured", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperKind).toBeUndefined();
+      // biome-ignore lint/suspicious/noExplicitAny: test assertion on internal options
+      const options = calls[0][2] as any;
+      expect(options.paperKind).toBe(261);
 
       await printer.shutdown();
     });
@@ -838,12 +779,14 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperKind).toBe(261);
+      // biome-ignore lint/suspicious/noExplicitAny: test assertion on internal options
+      const options = calls[0][2] as any;
+      expect(options.paperKind).toBe(261);
 
       await printer.shutdown();
     });
@@ -857,12 +800,14 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperKind).toBe(9);
+      // biome-ignore lint/suspicious/noExplicitAny: test assertion on internal options
+      const options = calls[0][2] as any;
+      expect(options.paperKind).toBe(9);
 
       await printer.shutdown();
     });
@@ -875,31 +820,14 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const calls = mockSumatraPrint(printer);
 
       const job = createPdfPrintJob();
       await printer.print(job);
 
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperKind).toBeUndefined();
-
-      await printer.shutdown();
-    });
-
-    test("skips Custom.* CUPS format for SumatraPDF", async () => {
-      const printer = new NativePrinter({
-        printerName: "EPSON_PX1VL",
-        paperSize: "Custom.11x15.5in",
-        persistDir: customPersistDir,
-      });
-      await printer.initialize(eventBus, config);
-      enableWindowsPlatform(printer);
-
-      const job = createPdfPrintJob();
-      await printer.print(job);
-
-      // Custom.* is CUPS syntax — SumatraPDF cannot parse it
-      const [, printOptions] = mockPrint.mock.calls[0];
-      expect(printOptions.paperSize).toBeUndefined();
+      // biome-ignore lint/suspicious/noExplicitAny: test assertion on internal options
+      const options = calls[0][2] as any;
+      expect(options.paperKind).toBeUndefined();
 
       await printer.shutdown();
     });
@@ -1158,6 +1086,7 @@ describe("NativePrinter", () => {
       });
       await printer.initialize(eventBus, config);
       enableWindowsPlatform(printer);
+      const sumatraCalls = mockSumatraPrint(printer);
 
       const job: PrintJob = {
         id: "simulate-pdf-test",
@@ -1179,7 +1108,7 @@ describe("NativePrinter", () => {
       await printer.print(job);
 
       // Should NOT call SumatraPDF
-      expect(mockPrint).not.toHaveBeenCalled();
+      expect(sumatraCalls).toHaveLength(0);
 
       // Should persist the file
       expect(job.filePath).toBeDefined();

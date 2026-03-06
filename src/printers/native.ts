@@ -141,76 +141,58 @@ function getFileExtension(contentType?: PrintContentType): string {
 }
 
 /**
- * Print a PDF file using pdf-to-printer (SumatraPDF) on Windows.
- * Only the `print()` function is used — `getPrinters()`/`getDefaultPrinter()`
- * are NOT called to avoid PowerShell parser bugs in Japanese environments.
+ * Build SumatraPDF `-print-settings` string from options.
+ * Called directly instead of pdf-to-printer to avoid unknown intermediary
+ * transformations that caused width compression on some machines.
+ * @internal Exported for testing.
  */
-async function printPdfWithSumatraPDF(
-  filePath: string,
-  printerName: string,
+export function buildSumatraSettings(
   options: NativePrinterInternalOptions,
   rawPaperSize?: string,
-): Promise<void> {
-  let ptpPrint: (pdf: string, opts?: import("pdf-to-printer").PrintOptions) => Promise<void>;
-  try {
-    const mod = await import("pdf-to-printer");
-    ptpPrint = mod.print;
-  } catch {
-    throw new Error(
-      "pdf-to-printer is required for Windows PDF printing. Install with: bun add pdf-to-printer",
-    );
-  }
+): string {
+  const settings: string[] = [];
 
-  const printOptions: import("pdf-to-printer").PrintOptions = {
-    printer: printerName,
-    silent: true,
-    copies: options.copies,
-    monochrome: !options.color,
-    scale: options.fitToPage ? "fit" : "noscale",
-    sumatraPdfPath: options.sumatraPdfPath,
-  };
+  // Disable auto-rotation to prevent SumatraPDF from rotating landscape PDFs
+  // (pSize.dx > pSize.dy) an additional 90° (see sumatrapdfreader/sumatrapdf#2353)
+  settings.push("disable-auto-rotation");
 
-  // Orientation handling for SumatraPDF (see sumatrapdfreader/sumatrapdf#2353):
-  // SumatraPDF auto-rotates when PDF pSize.dx > pSize.dy (landscape PDF).
-  // For landscape paper (e.g. 15×11 fan-fold), we need BOTH:
-  //   1. orientation="landscape" → sets DEVMODE so driver coordinate system
-  //      matches the physical paper layout
-  //   2. disable-auto-rotation → prevents SumatraPDF from rotating the
-  //      already-correct landscape PDF an additional 90°
-  // For portrait, only disable-auto-rotation is needed.
-  // Do NOT send orientation="portrait" — it can cause spooler hangs on
-  // continuous-feed printers when it conflicts with the driver's default.
+  // Orientation: only send "landscape" when explicitly configured.
+  // Do NOT send "portrait" — it can cause spooler hangs on continuous-feed printers.
   if (options.landscape) {
-    printOptions.orientation = "landscape";
-  }
-  printOptions.pages = "disable-auto-rotation";
-  if (options.duplex) {
-    printOptions.side = "duplex";
-  }
-  if (options.bin) {
-    printOptions.bin = options.bin;
-  }
-  if (options.paperKind) {
-    printOptions.paperKind = options.paperKind;
-    // paperKind sets dmPaperSize directly — paper= must NOT be sent.
-    // Both together causes SumatraPDF to resolve paper= name first,
-    // producing an incorrect render size (width compression).
-  } else if (rawPaperSize && !rawPaperSize.startsWith("Custom.")) {
-    // Pass raw paper name directly — Windows driver form names
-    // (e.g. "15x11", "Fanfold 15 x 11 1/2 inch") are not CUPS-normalizable,
-    // so we bypass normalizePaperName() and hand the value through as-is.
-    // Custom.* format (CUPS dimension syntax) is skipped — SumatraPDF cannot
-    // parse it, so we let the printer driver DEVMODE decide instead.
-    printOptions.paperSize = rawPaperSize;
+    settings.push("landscape");
   }
 
-  const printStart = Date.now();
-  console.log(
-    `[NativePrinter] Submitting PDF to spooler via SumatraPDF: ${filePath} (printer=${printerName})`,
-  );
-  console.log(`[NativePrinter] SumatraPDF options: ${JSON.stringify(printOptions)}`);
-  await ptpPrint(filePath, printOptions);
-  console.log(`[NativePrinter] Spooler accepted in ${Date.now() - printStart}ms`);
+  // Scale
+  settings.push(options.fitToPage ? "fit" : "noscale");
+
+  // Color / monochrome
+  settings.push(options.color ? "color" : "monochrome");
+
+  // Copies
+  const copies = options.copies ?? 1;
+  settings.push(`${copies}x`);
+
+  // Duplex
+  if (options.duplex) {
+    settings.push("duplex");
+  }
+
+  // Bin (paper tray)
+  if (options.bin) {
+    settings.push(`bin=${options.bin}`);
+  }
+
+  // Paper size: paperKind takes precedence over paper name.
+  // paperKind sets DEVMODE dmPaperSize directly.
+  // paper= and paperkind= must NOT both be sent — SumatraPDF resolves
+  // paper= name first, producing an incorrect render size (width compression).
+  if (options.paperKind) {
+    settings.push(`paperkind=${options.paperKind}`);
+  } else if (rawPaperSize && !rawPaperSize.startsWith("Custom.")) {
+    settings.push(`paper=${rawPaperSize}`);
+  }
+
+  return settings.join(",");
 }
 
 /**
@@ -413,6 +395,49 @@ export class NativePrinter extends BasePrinter {
     };
   }
 
+  /**
+   * Print a PDF via SumatraPDF directly (bypassing pdf-to-printer).
+   * Protected so tests can override it.
+   */
+  protected async printPdfViaSumatraPDF(
+    filePath: string,
+    printerName: string,
+    options: NativePrinterInternalOptions,
+    rawPaperSize?: string,
+  ): Promise<void> {
+    const sumatraPath = options.sumatraPdfPath;
+    if (!sumatraPath) {
+      throw new Error("SumatraPDF path is required for Windows PDF printing");
+    }
+
+    const settings = buildSumatraSettings(options, rawPaperSize);
+    const args = ["-print-to", printerName, "-silent", "-print-settings", settings, filePath];
+
+    const printStart = Date.now();
+    console.log(
+      `[NativePrinter] Submitting PDF to spooler via SumatraPDF: ${filePath} (printer=${printerName})`,
+    );
+    console.log(
+      `[NativePrinter] SumatraPDF command: ${sumatraPath} ${args.map((a) => `"${a}"`).join(" ")}`,
+    );
+
+    const proc = Bun.spawn([sumatraPath, ...args], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, , stderr] = await Promise.all([
+      proc.exited,
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+
+    const elapsed = Date.now() - printStart;
+    if (exitCode !== 0) {
+      throw new Error(`SumatraPDF exited with code ${exitCode}: ${stderr}`);
+    }
+    console.log(`[NativePrinter] Spooler accepted in ${elapsed}ms`);
+  }
+
   async print(job: PrintJob): Promise<void> {
     if (!this.printer || !this.printerAvailable) {
       throw new Error("Printer not connected");
@@ -514,7 +539,12 @@ export class NativePrinter extends BasePrinter {
         const optionsWithSumatra = this.resolvedSumatraPdfPath
           ? { ...effectiveOptions, sumatraPdfPath: this.resolvedSumatraPdfPath }
           : effectiveOptions;
-        await printPdfWithSumatraPDF(tempFile, targetPrinter.name, optionsWithSumatra, resolved);
+        await this.printPdfViaSumatraPDF(
+          tempFile,
+          targetPrinter.name,
+          optionsWithSumatra,
+          resolved,
+        );
       } else {
         // Normalize paper size for CUPS / @printers/printers path
         if (resolved) {
