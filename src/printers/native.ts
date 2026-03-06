@@ -173,12 +173,10 @@ async function printPdfWithSumatraPDF(
     // "disable-auto-rotation" is passed via the `pages` field since pdf-to-printer
     // does not expose this SumatraPDF option directly.
     pages: "disable-auto-rotation",
-    // SumatraPDF does NOT modify DEVMODE dmOrientation — the driver default controls
-    // the DC (device context) dimensions. When the driver is set to landscape,
-    // SumatraPDF sees bPrintPortrait=false and applies +90° rotation in its render
-    // pipeline. Sending "portrait" overrides bPrintPortrait=true, preventing this
-    // unwanted rotation while the driver still provides a landscape-width DC.
-    orientation: "portrait",
+    // Do NOT send orientation — let SumatraPDF use the driver's DEVMODE default.
+    // For continuous-feed dot matrix printers, PrintableArea is identical regardless
+    // of DEVMODE orientation, so forcing "portrait" can cause spooler hangs when
+    // it conflicts with the driver's current orientation setting.
     sumatraPdfPath: options.sumatraPdfPath,
   };
   if (options.duplex) {
