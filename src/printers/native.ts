@@ -6,8 +6,8 @@
  *          src/core/types.ts (PrintJob, PrinterType, PrinterStatus)
  */
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
-import { copyFile, mkdir, mkdtemp, rm, writeFile, access, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { copyFile, mkdir, mkdtemp, rm, writeFile, access } from "node:fs/promises";
 
 import { BasePrinter } from "./base-printer.js";
 import {
@@ -167,18 +167,23 @@ async function printPdfWithSumatraPDF(
     copies: options.copies,
     monochrome: !options.color,
     scale: options.fitToPage ? "fit" : "noscale",
-    // SumatraPDF auto-rotates pages when PDF width > height (autoRotate=true by default).
-    // For landscape-oriented paper (e.g. 15x11 fan-fold), this causes unwanted 90°/270°
-    // rotation because the PDF is already laid out in the correct orientation.
-    // "disable-auto-rotation" is passed via the `pages` field since pdf-to-printer
-    // does not expose this SumatraPDF option directly.
-    pages: "disable-auto-rotation",
-    // Do NOT send orientation — let SumatraPDF use the driver's DEVMODE default.
-    // For continuous-feed dot matrix printers, PrintableArea is identical regardless
-    // of DEVMODE orientation, so forcing "portrait" can cause spooler hangs when
-    // it conflicts with the driver's current orientation setting.
     sumatraPdfPath: options.sumatraPdfPath,
   };
+
+  // Orientation handling for SumatraPDF (see sumatrapdfreader/sumatrapdf#2353):
+  // SumatraPDF auto-rotates when PDF pSize.dx > pSize.dy (landscape PDF).
+  // For landscape paper (e.g. 15×11 fan-fold), we need BOTH:
+  //   1. orientation="landscape" → sets DEVMODE so driver coordinate system
+  //      matches the physical paper layout
+  //   2. disable-auto-rotation → prevents SumatraPDF from rotating the
+  //      already-correct landscape PDF an additional 90°
+  // For portrait, only disable-auto-rotation is needed.
+  // Do NOT send orientation="portrait" — it can cause spooler hangs on
+  // continuous-feed printers when it conflicts with the driver's default.
+  if (options.landscape) {
+    printOptions.orientation = "landscape";
+  }
+  printOptions.pages = "disable-auto-rotation";
   if (options.duplex) {
     printOptions.side = "duplex";
   }
