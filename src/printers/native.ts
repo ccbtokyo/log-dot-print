@@ -531,20 +531,35 @@ export class NativePrinter extends BasePrinter {
       const isSimulate =
         process.env.PRINTERS_JS_SIMULATE === "true" || this.options.simulate === true;
 
+      // Persist print file FIRST (always enabled with default directory).
+      // On Windows, printing from TEMP can fail due to antivirus file locks
+      // or delayed flush. Persisting first ensures a stable file for SumatraPDF.
+      await mkdir(this.options.persistDir, { recursive: true });
+      const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+      const persistFile = join(this.options.persistDir, `${timestamp}_${safeJobId}${ext}`);
+      await copyFile(tempFile, persistFile);
+      job.filePath = persistFile;
+      console.log(`[NativePrinter] Print file persisted: ${persistFile}`);
+
+      // Determine which file to print from:
+      // Windows PDF uses the persisted file (avoids TEMP issues);
+      // all other paths use the temp file (cleaned up in finally block).
+      const printFile =
+        this.isWindowsPlatform() && job.contentType === "pdf" ? persistFile : tempFile;
+
       // Print the file (skip in simulate mode)
       if (isSimulate) {
         console.log(`[NativePrinter] Simulate mode: skipping actual print for ${job.id}`);
       } else if (this.isWindowsPlatform() && job.contentType === "pdf") {
-        // Windows + PDF: delegate to SumatraPDF via pdf-to-printer.
+        // Windows + PDF: delegate to SumatraPDF directly.
         // Avoids the RAW datatype issue where PDF binary is sent directly
         // to the printer, causing metadata like %PDF-1.4 to be printed as text.
         // Pass raw paper name — CUPS normalization does not apply here.
-        // Use resolved SumatraPDF path (3.5+) if available
         const optionsWithSumatra = this.resolvedSumatraPdfPath
           ? { ...effectiveOptions, sumatraPdfPath: this.resolvedSumatraPdfPath }
           : effectiveOptions;
         await this.printPdfViaSumatraPDF(
-          tempFile,
+          printFile,
           targetPrinter.name,
           optionsWithSumatra,
           resolved,
@@ -578,20 +593,12 @@ export class NativePrinter extends BasePrinter {
 
         // All other cases: use @printers/printers native printing.
         // Explicitly wait for completion before removing the temp file.
-        await targetPrinter.printFile(tempFile, {
+        await targetPrinter.printFile(printFile, {
           simple: printOptions,
           cups: cupsOptions,
           waitForCompletion: true,
         });
       }
-
-      // Persist print file (always enabled with default directory)
-      await mkdir(this.options.persistDir, { recursive: true });
-      const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
-      const persistFile = join(this.options.persistDir, `${timestamp}_${safeJobId}${ext}`);
-      await copyFile(tempFile, persistFile);
-      job.filePath = persistFile;
-      console.log(`[NativePrinter] Print file persisted: ${persistFile}`);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
