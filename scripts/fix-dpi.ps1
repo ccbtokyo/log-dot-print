@@ -9,8 +9,11 @@ param(
     [Parameter(Mandatory)][string]$PrinterName
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 
+Write-Host "[fix-dpi] Starting for printer: $PrinterName"
+
+try {
 Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
@@ -105,3 +108,6 @@ public class DevModeFixer {
 
 $result = [DevModeFixer]::Fix($PrinterName)
 Write-Host $result
+} catch {
+    Write-Host "[fix-dpi] ERROR: $_"
+}
