@@ -417,27 +417,52 @@ export class NativePrinter extends BasePrinter {
     console.log(
       `[NativePrinter] Submitting PDF to spooler via SumatraPDF: ${filePath} (printer=${printerName})`,
     );
+    console.log(`[NativePrinter] SumatraPDF settings: ${settings}`);
 
-    // Use PowerShell Start-Process to launch SumatraPDF.
-    // Bun.spawn's CreateProcessW argument escaping differs from PowerShell
-    // and can cause SumatraPDF to misinterpret -print-settings on some machines.
-    const sumatraArgs = `-print-to "${printerName}" -silent -print-settings "${settings}" "${filePath}"`;
-    const psCommand = `Start-Process -FilePath '${sumatraPath}' -ArgumentList '${sumatraArgs}' -NoNewWindow -Wait`;
-    console.log(`[NativePrinter] PowerShell: ${psCommand}`);
-
-    const proc = Bun.spawn(["powershell", "-NoProfile", "-Command", psCommand], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [exitCode, , stderr] = await Promise.all([
+    // Use scripts/sumatra-print.ps1 wrapper to:
+    // 1. Fix asymmetric DPI (Session 0 may have 360x180 default, causing 50% width compression)
+    // 2. Call SumatraPDF via PowerShell & operator (matches interactive CLI behavior)
+    const scriptPath = join(process.cwd(), "scripts", "sumatra-print.ps1");
+    const proc = Bun.spawn(
+      [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        scriptPath,
+        "-SumatraPath",
+        sumatraPath,
+        "-PrinterName",
+        printerName,
+        "-Settings",
+        settings,
+        "-FilePath",
+        filePath,
+      ],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const [exitCode, stdout, stderr] = await Promise.all([
       proc.exited,
       new Response(proc.stdout).text(),
       new Response(proc.stderr).text(),
     ]);
 
+    // Log script output (includes DPI check results)
+    if (stdout.trim()) {
+      for (const line of stdout.trim().split("\n")) {
+        console.log(`[NativePrinter] ${line.trim()}`);
+      }
+    }
+    if (stderr.trim()) {
+      for (const line of stderr.trim().split("\n")) {
+        console.warn(`[NativePrinter] ${line.trim()}`);
+      }
+    }
+
     const elapsed = Date.now() - printStart;
     if (exitCode !== 0) {
-      throw new Error(`SumatraPDF exited with code ${exitCode}: ${stderr}`);
+      throw new Error(`sumatra-print.ps1 exited with code ${exitCode}: ${stderr}`);
     }
     console.log(`[NativePrinter] Spooler accepted in ${elapsed}ms`);
   }
