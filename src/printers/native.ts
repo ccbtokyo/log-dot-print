@@ -379,107 +379,22 @@ export class NativePrinter extends BasePrinter {
    * Session 0 may have asymmetric defaults (360x180) causing 50% width
    * compression in SumatraPDF.
    *
-   * Uses Win32 SetPrinter(PRINTER_INFO_8) to bypass the PrintTicket Provider,
-   * which normalizes DEVMODE values based on driver-defined option presets.
-   *
-   * DEVMODE structure offsets:
-   *   90 (0x5A): dmPrintQuality (Int16) = X DPI
-   *   96 (0x60): dmYResolution  (Int16) = Y DPI
+   * Calls scripts/fix-dpi.ps1 which uses Win32 SetPrinter(PRINTER_INFO_8)
+   * to bypass the PrintTicket Provider (which normalizes DEVMODE values).
    */
   private async ensureSymmetricDpi(printerName: string): Promise<void> {
-    const psCommand = `
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-
-public class DevModeFixer {
-    [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
-    static extern bool OpenPrinter(string pPrinterName, out IntPtr phPrinter, IntPtr pDefault);
-
-    [DllImport("winspool.drv", SetLastError = true)]
-    static extern bool ClosePrinter(IntPtr hPrinter);
-
-    [DllImport("winspool.drv", SetLastError = true, CharSet = CharSet.Unicode)]
-    static extern int DocumentProperties(
-        IntPtr hWnd, IntPtr hPrinter, string pDeviceName,
-        IntPtr pDevModeOutput, IntPtr pDevModeInput, int fMode);
-
-    [DllImport("winspool.drv", SetLastError = true)]
-    static extern bool GetPrinter(IntPtr hPrinter, int level, IntPtr pPrinter, int cbBuf, out int pcbNeeded);
-
-    [DllImport("winspool.drv", SetLastError = true)]
-    static extern bool SetPrinter(IntPtr hPrinter, int level, IntPtr pPrinter, int command);
-
-    const int DM_OUT_BUFFER = 2;
-    const int DM_IN_BUFFER = 8;
-
-    public static string Fix(string printerName) {
-        IntPtr hPrinter;
-        if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero))
-            return "ERROR: OpenPrinter failed: " + Marshal.GetLastWin32Error();
-        try {
-            // Get DEVMODE size
-            int size = DocumentProperties(IntPtr.Zero, hPrinter, printerName,
-                IntPtr.Zero, IntPtr.Zero, 0);
-            if (size < 0)
-                return "ERROR: DocumentProperties(size) failed";
-
-            IntPtr pDevMode = Marshal.AllocHGlobal(size);
-            try {
-                // Get current DEVMODE
-                int ret = DocumentProperties(IntPtr.Zero, hPrinter, printerName,
-                    pDevMode, IntPtr.Zero, DM_OUT_BUFFER);
-                if (ret < 0)
-                    return "ERROR: DocumentProperties(get) failed";
-
-                short xDpi = Marshal.ReadInt16(pDevMode, 90);
-                short yDpi = Marshal.ReadInt16(pDevMode, 96);
-                string msg = "DEVMODE DPI: " + xDpi + "x" + yDpi;
-
-                if (xDpi == yDpi || xDpi <= 0 || yDpi <= 0)
-                    return msg;
-
-                short target = (short)Math.Min(xDpi, yDpi);
-                Marshal.WriteInt16(pDevMode, 90, target);
-                Marshal.WriteInt16(pDevMode, 96, target);
-
-                // Validate (driver may adjust other fields)
-                ret = DocumentProperties(IntPtr.Zero, hPrinter, printerName,
-                    pDevMode, pDevMode, DM_IN_BUFFER | DM_OUT_BUFFER);
-                if (ret < 0)
-                    return msg + " | ERROR: DocumentProperties(validate) failed";
-
-                // Check if driver accepted the change
-                short newX = Marshal.ReadInt16(pDevMode, 90);
-                short newY = Marshal.ReadInt16(pDevMode, 96);
-                if (newX != target || newY != target)
-                    return msg + " | WARNING: driver rejected change, got " + newX + "x" + newY;
-
-                // Apply as global default (PRINTER_INFO_8)
-                IntPtr pInfo = Marshal.AllocHGlobal(IntPtr.Size);
-                try {
-                    Marshal.WriteIntPtr(pInfo, pDevMode);
-                    if (!SetPrinter(hPrinter, 8, pInfo, 0))
-                        return msg + " | ERROR: SetPrinter(8) failed: " + Marshal.GetLastWin32Error();
-                } finally {
-                    Marshal.FreeHGlobal(pInfo);
-                }
-
-                return msg + " | Fixed: " + xDpi + "x" + yDpi + " -> " + target + "x" + target;
-            } finally {
-                Marshal.FreeHGlobal(pDevMode);
-            }
-        } finally {
-            ClosePrinter(hPrinter);
-        }
-    }
-}
-"@ -Language CSharp
-
-Write-Host ([DevModeFixer]::Fix('${printerName}'))
-    `;
+    const scriptPath = join(process.cwd(), "scripts", "fix-dpi.ps1");
     const proc = Bun.spawn(
-      ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand],
+      [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        scriptPath,
+        "-PrinterName",
+        printerName,
+      ],
       { stdout: "pipe", stderr: "pipe" },
     );
     const [exitCode, stdout, stderr] = await Promise.all([
