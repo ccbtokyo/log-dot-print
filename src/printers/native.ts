@@ -384,6 +384,7 @@ export class NativePrinter extends BasePrinter {
    */
   private async ensureSymmetricDpi(printerName: string): Promise<void> {
     const scriptPath = join(process.cwd(), "scripts", "fix-dpi.ps1");
+    console.log(`[NativePrinter] DPI fix: cwd=${process.cwd()}, script=${scriptPath}`);
     const proc = Bun.spawn(
       [
         "powershell",
