@@ -412,17 +412,20 @@ export class NativePrinter extends BasePrinter {
     }
 
     const settings = buildSumatraSettings(options, rawPaperSize);
-    const args = ["-print-to", printerName, "-silent", "-print-settings", settings, filePath];
 
     const printStart = Date.now();
     console.log(
       `[NativePrinter] Submitting PDF to spooler via SumatraPDF: ${filePath} (printer=${printerName})`,
     );
-    console.log(
-      `[NativePrinter] SumatraPDF command: ${sumatraPath} ${args.map((a) => `"${a}"`).join(" ")}`,
-    );
 
-    const proc = Bun.spawn([sumatraPath, ...args], {
+    // Use PowerShell Start-Process to launch SumatraPDF.
+    // Bun.spawn's CreateProcessW argument escaping differs from PowerShell
+    // and can cause SumatraPDF to misinterpret -print-settings on some machines.
+    const sumatraArgs = `-print-to "${printerName}" -silent -print-settings "${settings}" "${filePath}"`;
+    const psCommand = `Start-Process -FilePath '${sumatraPath}' -ArgumentList '${sumatraArgs}' -NoNewWindow -Wait`;
+    console.log(`[NativePrinter] PowerShell: ${psCommand}`);
+
+    const proc = Bun.spawn(["powershell", "-NoProfile", "-Command", psCommand], {
       stdout: "pipe",
       stderr: "pipe",
     });
