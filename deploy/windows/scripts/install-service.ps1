@@ -196,8 +196,45 @@ New-NetFirewallRule -DisplayName "Log-Dot-Print" `
     -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow | Out-Null
 Write-Host "  OK: Firewall rule added (TCP port $port)" -ForegroundColor Green
 
-# 8. Remove password from persisted XML (security: avoid plaintext on disk)
-Write-Host "[6/6] Cleaning up credentials..." -ForegroundColor Yellow
+# 8. Fix asymmetric DPI for EPSON ESC/P printers (Session 0 default may be 360x180)
+Write-Host "[6/6] Checking printer DPI..." -ForegroundColor Yellow
+try {
+    $printerNameFromConfig = $null
+    if (Test-Path $configPath) {
+        try {
+            $cfg = Get-Content $configPath -Raw | ConvertFrom-Json
+            $printerNameFromConfig = $cfg.printer.options.printerName
+        } catch {}
+    }
+    if ($printerNameFromConfig) {
+        $printConfig = Get-PrintConfiguration -PrinterName $printerNameFromConfig -ErrorAction Stop
+        [xml]$ticket = $printConfig.PrintTicketXml
+        $nsm = New-Object Xml.XmlNamespaceManager($ticket.NameTable)
+        $nsm.AddNamespace("psf", "http://schemas.microsoft.com/windows/2003/08/printing/printschemaframework")
+        $nsm.AddNamespace("psk", "http://schemas.microsoft.com/windows/2003/08/printing/printschemakeywords")
+        $xNode = $ticket.SelectSingleNode("//psf:Feature[@name='psk:PageResolution']//psf:ScoredProperty[@name='psk:ResolutionX']/psf:Value", $nsm)
+        $yNode = $ticket.SelectSingleNode("//psf:Feature[@name='psk:PageResolution']//psf:ScoredProperty[@name='psk:ResolutionY']/psf:Value", $nsm)
+        if ($xNode -and $yNode) {
+            $xDpi = [int]$xNode.InnerText; $yDpi = [int]$yNode.InnerText
+            if ($xDpi -ne $yDpi) {
+                $target = [Math]::Min($xDpi, $yDpi)
+                Write-Host "  Fixing asymmetric DPI: ${xDpi}x${yDpi} -> ${target}x${target}" -ForegroundColor Yellow
+                $xNode.InnerText = "$target"; $yNode.InnerText = "$target"
+                Set-PrintConfiguration -PrinterName $printerNameFromConfig -PrintTicketXml $ticket.OuterXml -ErrorAction Stop
+                Write-Host "  OK: DPI set to ${target}x${target}" -ForegroundColor Green
+            } else {
+                Write-Host "  OK: DPI already symmetric (${xDpi}x${yDpi})" -ForegroundColor Green
+            }
+        }
+    } else {
+        Write-Host "  Skipped: no printerName in config" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "  WARNING: Could not check/fix DPI: $_" -ForegroundColor Yellow
+}
+
+# 9. Remove password from persisted XML (security: avoid plaintext on disk)
+Write-Host "[7/7] Cleaning up credentials..." -ForegroundColor Yellow
 $xmlContent = Get-Content $ServiceXml -Raw
 $xmlContent = $xmlContent -replace '<password>[^<]*</password>', '<password>********</password>'
 Set-Content -Path $ServiceXml -Value $xmlContent -Encoding UTF8

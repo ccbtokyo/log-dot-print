@@ -362,12 +362,57 @@ export class NativePrinter extends BasePrinter {
         console.warn("[NativePrinter] Falling back to pdf-to-printer bundled SumatraPDF (3.4.6)");
       }
 
-      // Dump DEVMODE for debugging Session 0 vs interactive differences
+      // Fix asymmetric DPI and dump DEVMODE for debugging.
+      // Session 0 (Windows services) may have different DEVMODE defaults
+      // than the interactive session (e.g. 360x180 instead of 180x180).
       if (this.printer) {
+        await this.ensureSymmetricDpi(this.printer.name);
         this.dumpDevmode(this.printer.name).catch((err) =>
           console.warn("[NativePrinter] DEVMODE dump failed:", err),
         );
       }
+    }
+  }
+
+  /**
+   * Ensure the printer has symmetric DPI (e.g. 180x180).
+   * Session 0 may have asymmetric defaults (360x180) causing 50% width
+   * compression in SumatraPDF. Set-PrintConfiguration persists the fix.
+   */
+  private async ensureSymmetricDpi(printerName: string): Promise<void> {
+    const psCommand = `
+      $config = Get-PrintConfiguration -PrinterName '${printerName}' -ErrorAction Stop
+      [xml]$ticket = $config.PrintTicketXml
+      $nsm = New-Object Xml.XmlNamespaceManager($ticket.NameTable)
+      $nsm.AddNamespace('psf','http://schemas.microsoft.com/windows/2003/08/printing/printschemaframework')
+      $nsm.AddNamespace('psk','http://schemas.microsoft.com/windows/2003/08/printing/printschemakeywords')
+      $xNode = $ticket.SelectSingleNode("//psf:Feature[@name='psk:PageResolution']//psf:ScoredProperty[@name='psk:ResolutionX']/psf:Value", $nsm)
+      $yNode = $ticket.SelectSingleNode("//psf:Feature[@name='psk:PageResolution']//psf:ScoredProperty[@name='psk:ResolutionY']/psf:Value", $nsm)
+      if ($xNode -and $yNode) {
+        $x = [int]$xNode.InnerText; $y = [int]$yNode.InnerText
+        Write-Host "DPI: $($x)x$($y)"
+        if ($x -ne $y) {
+          $target = [Math]::Min($x,$y)
+          $xNode.InnerText = "$target"; $yNode.InnerText = "$target"
+          Set-PrintConfiguration -PrinterName '${printerName}' -PrintTicketXml $ticket.OuterXml -ErrorAction Stop
+          Write-Host "Fixed: $($x)x$($y) -> $($target)x$($target)"
+        }
+      }
+    `;
+    const proc = Bun.spawn(
+      ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand],
+      { stdout: "pipe", stderr: "pipe" },
+    );
+    const [exitCode, stdout, stderr] = await Promise.all([
+      proc.exited,
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+    ]);
+    for (const line of stdout.trim().split("\n").filter(Boolean)) {
+      console.log(`[NativePrinter] ${line.trim()}`);
+    }
+    if (exitCode !== 0 && stderr.trim()) {
+      console.warn(`[NativePrinter] DPI fix failed: ${stderr.trim()}`);
     }
   }
 
