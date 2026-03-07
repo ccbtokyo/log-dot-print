@@ -12,8 +12,7 @@ import { parseLogEntry } from "../core/index.js";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { resolveRequestSource } from "./request-source.js";
-
-const SUBMISSION_TIMEOUT_MS = 300_000;
+import { submitEntry } from "./submit-entry.js";
 
 const LogSubmitPayloadSchema = z
   .object({
@@ -413,8 +412,7 @@ export class HttpReceiver implements LogReceiverPlugin {
   }
 
   private submitEntry(entry: LogEntry): Promise<LogSubmitResult> {
-    const eventBus = this.eventBus;
-    if (!eventBus) {
+    if (!this.eventBus) {
       return Promise.resolve({
         accepted: false,
         id: entry.id,
@@ -422,38 +420,7 @@ export class HttpReceiver implements LogReceiverPlugin {
         message: "Receiver not initialized",
       });
     }
-
-    return new Promise((resolve) => {
-      let settled = false;
-      const timeout = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        resolve({
-          accepted: false,
-          id: entry.id,
-          code: "timeout",
-          message: "Submission timed out",
-        });
-      }, SUBMISSION_TIMEOUT_MS);
-
-      const handled = eventBus.emit("log:received", entry, (result: LogSubmitResult) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        resolve(result);
-      });
-
-      if (!handled) {
-        settled = true;
-        clearTimeout(timeout);
-        resolve({
-          accepted: false,
-          id: entry.id,
-          code: "no_handler",
-          message: "No log handler registered",
-        });
-      }
-    });
+    return submitEntry(this.eventBus, entry);
   }
 }
 

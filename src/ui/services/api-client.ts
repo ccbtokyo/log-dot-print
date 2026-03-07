@@ -112,6 +112,17 @@ export class ApiClient {
     return response.json();
   }
 
+  async replayJob(id: string): Promise<{ success: boolean; id: string; queueSize?: number }> {
+    const response = await fetch(`${this.baseUrl}/api/history/${encodeURIComponent(id)}/replay`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error ?? `Failed to replay job: ${response.status}`);
+    }
+    return response.json();
+  }
+
   async getPrinterSettings(): Promise<PrinterSettingsState> {
     const response = await fetch(`${this.baseUrl}/api/settings/printer`);
     if (!response.ok) {

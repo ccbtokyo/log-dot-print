@@ -5,6 +5,10 @@
 import { html, render } from "lit-html";
 import type { HistoryState, HistoryJobInfo } from "../types.js";
 
+export interface HistoryTableHandlers {
+  onReplay: (id: string) => void;
+}
+
 const formatDate = (isoString: string): string => {
   const date = new Date(isoString);
   return date.toLocaleString();
@@ -28,7 +32,7 @@ const getStatusBadgeClass = (status: string): string => {
   }
 };
 
-const renderRow = (job: HistoryJobInfo) => {
+const renderRow = (job: HistoryJobInfo, handlers: HistoryTableHandlers) => {
   const downloadLink = job.hasFile
     ? html`<a href="/api/history/${job.id}/download" class="download-link" download>📄</a>`
     : html`
@@ -46,11 +50,20 @@ const renderRow = (job: HistoryJobInfo) => {
       <td class="history-cell-retry">${job.retryCount}</td>
       <td class="history-cell-error" title="${job.error ?? ""}">${job.error ? truncateMessage(job.error, 30) : "-"}</td>
       <td class="history-cell-download">${downloadLink}</td>
+      <td class="history-cell-replay">
+        <button class="replay-btn" @click=${() => handlers.onReplay(job.id)} title="Re-print this job">
+          ↻
+        </button>
+      </td>
     </tr>
   `;
 };
 
-export const renderHistoryTable = (container: HTMLElement, state: HistoryState) => {
+export const renderHistoryTable = (
+  container: HTMLElement,
+  state: HistoryState,
+  handlers: HistoryTableHandlers,
+) => {
   if (state.isLoading) {
     const template = html`
       <div class="loading">Loading history...</div>
@@ -84,10 +97,11 @@ export const renderHistoryTable = (container: HTMLElement, state: HistoryState) 
           <th>Retries</th>
           <th>Error</th>
           <th>File</th>
+          <th>Replay</th>
         </tr>
       </thead>
       <tbody>
-        ${state.jobs.map(renderRow)}
+        ${state.jobs.map((job) => renderRow(job, handlers))}
       </tbody>
     </table>
   `;

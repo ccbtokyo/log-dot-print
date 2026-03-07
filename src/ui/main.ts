@@ -11,7 +11,7 @@ import { renderControls, type ControlsHandlers } from "./components/controls.js"
 import { renderQueueList } from "./components/queue-list.js";
 import { renderJobPreview, type PreviewState } from "./components/job-preview.js";
 import { renderTabs, type TabsHandlers } from "./components/tabs.js";
-import { renderHistoryTable } from "./components/history-table.js";
+import { renderHistoryTable, type HistoryTableHandlers } from "./components/history-table.js";
 import { renderPagination, type PaginationHandlers } from "./components/pagination.js";
 import type { ServerMessage, TabType } from "./types.js";
 
@@ -110,6 +110,25 @@ const previewHandlers = {
   },
   onPrioritize: (id: string) => {
     wsClient.prioritize(id);
+  },
+};
+
+// History table handlers
+const replayingIds = new Set<string>();
+const historyTableHandlers: HistoryTableHandlers = {
+  onReplay: async (id: string) => {
+    if (replayingIds.has(id)) return;
+    replayingIds.add(id);
+    try {
+      await apiClient.replayJob(id);
+      console.log("[App] Replay submitted for job:", id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to replay job";
+      store.setError(message);
+      console.error("[App] Failed to replay job:", error);
+    } finally {
+      replayingIds.delete(id);
+    }
   },
 };
 
@@ -313,7 +332,7 @@ function renderApp(state: AppState): void {
     queueViewEl.style.display = "none";
     historyViewEl.style.display = "";
     render(nothing, controlsEl);
-    renderHistoryTable(historyTableEl, state.history);
+    renderHistoryTable(historyTableEl, state.history, historyTableHandlers);
     renderPagination(paginationEl, state.history.pagination, paginationHandlers);
   }
 

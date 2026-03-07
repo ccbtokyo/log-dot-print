@@ -15,6 +15,8 @@ import type {
   PaperListResponse,
   PaperSettings,
 } from "../../core/index.js";
+import { parseLogEntry } from "../../core/index.js";
+import { submitEntry } from "../submit-entry.js";
 import type { SqliteStorage } from "../../storage/sqlite-storage.js";
 import type { PrintQueue } from "../../printers/index.js";
 import type { LogFormatterPlugin } from "../../core/index.js";
@@ -164,6 +166,44 @@ export class QueueController {
           totalPages,
         },
       });
+    });
+
+    // POST /api/history/:id/replay - Re-print a completed/failed job
+    this.app.post("/api/history/:id/replay", async (c) => {
+      if (!this.storage?.getPrintJobById) {
+        return c.json({ error: "Storage not configured" }, 503);
+      }
+
+      const id = c.req.param("id");
+      const job = await this.storage.getPrintJobById(id);
+
+      if (!job) {
+        return c.json({ error: "Job not found" }, 404);
+      }
+
+      // Re-parse the original message through the normal log pipeline
+      const originalMessage = job.logEntry.message;
+      let payload: unknown;
+      try {
+        payload = JSON.parse(originalMessage);
+      } catch {
+        // If not valid JSON, use the raw string
+        payload = originalMessage;
+      }
+
+      const entry = parseLogEntry(payload, { source: job.logEntry.source });
+      if (!entry) {
+        return c.json({ error: "Failed to parse original log entry" }, 500);
+      }
+
+      // Submit through the event bus (same pipeline as POST /api/log)
+      const result = await submitEntry(this.eventBus, entry);
+
+      if (!result.accepted) {
+        return c.json({ error: result.message ?? "Replay failed", code: result.code }, 503);
+      }
+
+      return c.json({ success: true, id: result.id, queueSize: result.queueSize });
     });
 
     // GET /api/history/:id/download - Download print file

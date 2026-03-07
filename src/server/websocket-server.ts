@@ -9,8 +9,7 @@ import type {
 import { parseLogEntry } from "../core/index.js";
 import type { WebSocketHandler } from "./websocket-types.js";
 import type { WebSocketData } from "./bun-server.js";
-
-const SUBMISSION_TIMEOUT_MS = 300_000;
+import { submitEntry } from "./submit-entry.js";
 
 /**
  * WebSocket server for real-time log streaming from UE
@@ -176,8 +175,7 @@ export class WebSocketReceiver implements LogReceiverPlugin, WebSocketHandler {
   }
 
   private submitEntry(entry: LogEntry): Promise<LogSubmitResult> {
-    const eventBus = this.eventBus;
-    if (!eventBus) {
+    if (!this.eventBus) {
       return Promise.resolve({
         accepted: false,
         id: entry.id,
@@ -185,38 +183,7 @@ export class WebSocketReceiver implements LogReceiverPlugin, WebSocketHandler {
         message: "Receiver not initialized",
       });
     }
-
-    return new Promise((resolve) => {
-      let settled = false;
-      const timeout = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        resolve({
-          accepted: false,
-          id: entry.id,
-          code: "timeout",
-          message: "Submission timed out",
-        });
-      }, SUBMISSION_TIMEOUT_MS);
-
-      const handled = eventBus.emit("log:received", entry, (result: LogSubmitResult) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        resolve(result);
-      });
-
-      if (!handled) {
-        settled = true;
-        clearTimeout(timeout);
-        resolve({
-          accepted: false,
-          id: entry.id,
-          code: "no_handler",
-          message: "No log handler registered",
-        });
-      }
-    });
+    return submitEntry(this.eventBus, entry);
   }
 
   /**
