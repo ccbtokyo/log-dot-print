@@ -362,14 +362,10 @@ export class NativePrinter extends BasePrinter {
         console.warn("[NativePrinter] Falling back to pdf-to-printer bundled SumatraPDF (3.4.6)");
       }
 
-      // Fix asymmetric DPI and dump DEVMODE for debugging.
-      // Session 0 (Windows services) may have different DEVMODE defaults
-      // than the interactive session (e.g. 360x180 instead of 180x180).
+      // Session 0 (Windows services) may have asymmetric DPI defaults
+      // (e.g. 360x180) causing 50% width compression in SumatraPDF.
       if (this.printer) {
         await this.ensureSymmetricDpi(this.printer.name);
-        this.dumpDevmode(this.printer.name).catch((err) =>
-          console.warn("[NativePrinter] DEVMODE dump failed:", err),
-        );
       }
     }
   }
@@ -379,12 +375,13 @@ export class NativePrinter extends BasePrinter {
    * Session 0 may have asymmetric defaults (360x180) causing 50% width
    * compression in SumatraPDF.
    *
-   * Calls scripts/fix-dpi.ps1 which uses Win32 SetPrinter(PRINTER_INFO_8)
-   * to bypass the PrintTicket Provider (which normalizes DEVMODE values).
+   * Calls scripts/fix-dpi.ps1 which patches the DEVMODE in the registry
+   * (HKLM\...\Print\Printers\<name>\Default DevMode) and restarts the
+   * spooler. This bypasses the PrintTicket Provider which normalizes
+   * DEVMODE values based on driver-defined option presets.
    */
   private async ensureSymmetricDpi(printerName: string): Promise<void> {
     const scriptPath = join(process.cwd(), "scripts", "fix-dpi.ps1");
-    console.log(`[NativePrinter] DPI fix: cwd=${process.cwd()}, script=${scriptPath}`);
     const proc = Bun.spawn(
       [
         "powershell",
@@ -411,41 +408,6 @@ export class NativePrinter extends BasePrinter {
     }
     if (exitCode !== 0) {
       console.warn(`[NativePrinter] DPI fix exited with code ${exitCode}`);
-    }
-  }
-
-  /**
-   * Dump printer DEVMODE via PowerShell for debugging Session 0 differences.
-   */
-  private async dumpDevmode(printerName: string): Promise<void> {
-    const scriptPath = join(process.cwd(), "scripts", "debug-devmode.ps1");
-    const proc = Bun.spawn(
-      [
-        "powershell",
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        scriptPath,
-        "-PrinterName",
-        printerName,
-      ],
-      { stdout: "pipe", stderr: "pipe" },
-    );
-    const [, stdout, stderr] = await Promise.all([
-      proc.exited,
-      new Response(proc.stdout).text(),
-      new Response(proc.stderr).text(),
-    ]);
-    if (stdout.trim()) {
-      for (const line of stdout.trim().split("\n")) {
-        console.log(`[DEVMODE] ${line.trimEnd()}`);
-      }
-    }
-    if (stderr.trim()) {
-      for (const line of stderr.trim().split("\n")) {
-        console.warn(`[DEVMODE] ${line.trimEnd()}`);
-      }
     }
   }
 
