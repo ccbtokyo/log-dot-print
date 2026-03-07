@@ -229,12 +229,15 @@ export class QueueController {
         return c.json({ error: "File not found on disk" }, 404);
       }
 
-      const content = await readFile(job.filePath, "utf-8");
+      const content = await readFile(job.filePath);
       const filename = basename(job.filePath);
+      const contentType = filename.endsWith(".pdf")
+        ? "application/pdf"
+        : "text/plain; charset=utf-8";
 
       return new Response(content, {
         headers: {
-          "Content-Type": "text/plain; charset=utf-8",
+          "Content-Type": contentType,
           "Content-Disposition": `attachment; filename="${filename}"`,
         },
       });
