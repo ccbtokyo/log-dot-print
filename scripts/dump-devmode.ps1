@@ -24,55 +24,32 @@ try {
     Write-Host "DEVMODE size: $($dm.Length) bytes"
     Write-Host ""
 
-    # Standard DEVMODE fields (wingdi.h offsets for DEVMODEW)
-    # Offset  Size  Field
-    # 0       64    dmDeviceName (WCHAR[32])
-    # 68      2     dmSpecVersion
-    # 70      2     dmDriverVersion
-    # 72      2     dmSize
-    # 74      2     dmDriverExtra
-    # 76      4     dmFields (bitmask)
-    # 80      2     dmOrientation
-    # 82      2     dmPaperSize
-    # 84      2     dmPaperLength
-    # 86      2     dmPaperWidth
-    # 88      2     dmScale
-    # 90      2     dmCopies
-    # 92      2     dmDefaultSource
-    # 94      2     dmPrintQuality (= X DPI)
-    # 96      2     dmColor        (1=mono, 2=color)
-    # 98      2     dmDuplex
-    # 100     2     dmYResolution  (= Y DPI)
-    # 102     2     dmTTOption
-    # 104     2     dmCollate
-    # 108     64    dmFormName (WCHAR[32])
-    # ...
-    # 178     4     dmDitherType
-
+    # DEVMODEW offsets (wingdi.h) - verified against fix-dpi.ps1
+    # dmDeviceName: WCHAR[32] = 64 bytes at offset 0
     $fields = @(
-        @{ Name = "dmSpecVersion";    Offset = 68;  Size = 2; Signed = $false }
-        @{ Name = "dmDriverVersion";  Offset = 70;  Size = 2; Signed = $false }
-        @{ Name = "dmSize";           Offset = 72;  Size = 2; Signed = $false }
-        @{ Name = "dmDriverExtra";    Offset = 74;  Size = 2; Signed = $false }
-        @{ Name = "dmFields";         Offset = 76;  Size = 4; Signed = $false }
-        @{ Name = "dmOrientation";    Offset = 80;  Size = 2; Signed = $true }
-        @{ Name = "dmPaperSize";      Offset = 82;  Size = 2; Signed = $true }
-        @{ Name = "dmPaperLength";    Offset = 84;  Size = 2; Signed = $true }
-        @{ Name = "dmPaperWidth";     Offset = 86;  Size = 2; Signed = $true }
-        @{ Name = "dmScale";          Offset = 88;  Size = 2; Signed = $true }
-        @{ Name = "dmCopies";         Offset = 90;  Size = 2; Signed = $true }
-        @{ Name = "dmDefaultSource";  Offset = 92;  Size = 2; Signed = $true }
-        @{ Name = "dmPrintQuality";   Offset = 94;  Size = 2; Signed = $true }
-        @{ Name = "dmColor";          Offset = 96;  Size = 2; Signed = $true }
-        @{ Name = "dmDuplex";         Offset = 98;  Size = 2; Signed = $true }
-        @{ Name = "dmYResolution";    Offset = 100; Size = 2; Signed = $true }
-        @{ Name = "dmTTOption";       Offset = 102; Size = 2; Signed = $true }
-        @{ Name = "dmCollate";        Offset = 104; Size = 2; Signed = $true }
-        @{ Name = "dmDitherType";     Offset = 178; Size = 4; Signed = $false }
+        @{ Name = "dmSpecVersion";    Offset = 64;  Size = 2; Signed = $false }
+        @{ Name = "dmDriverVersion";  Offset = 66;  Size = 2; Signed = $false }
+        @{ Name = "dmSize";           Offset = 68;  Size = 2; Signed = $false }
+        @{ Name = "dmDriverExtra";    Offset = 70;  Size = 2; Signed = $false }
+        @{ Name = "dmFields";         Offset = 72;  Size = 4; Signed = $false }
+        @{ Name = "dmOrientation";    Offset = 76;  Size = 2; Signed = $true }
+        @{ Name = "dmPaperSize";      Offset = 78;  Size = 2; Signed = $true }
+        @{ Name = "dmPaperLength";    Offset = 80;  Size = 2; Signed = $true }
+        @{ Name = "dmPaperWidth";     Offset = 82;  Size = 2; Signed = $true }
+        @{ Name = "dmScale";          Offset = 84;  Size = 2; Signed = $true }
+        @{ Name = "dmCopies";         Offset = 86;  Size = 2; Signed = $true }
+        @{ Name = "dmDefaultSource";  Offset = 88;  Size = 2; Signed = $true }
+        @{ Name = "dmPrintQuality";   Offset = 90;  Size = 2; Signed = $true }
+        @{ Name = "dmColor";          Offset = 92;  Size = 2; Signed = $true }
+        @{ Name = "dmDuplex";         Offset = 94;  Size = 2; Signed = $true }
+        @{ Name = "dmYResolution";    Offset = 96;  Size = 2; Signed = $true }
+        @{ Name = "dmTTOption";       Offset = 98;  Size = 2; Signed = $true }
+        @{ Name = "dmCollate";        Offset = 100; Size = 2; Signed = $true }
+        @{ Name = "dmDitherType";     Offset = 200; Size = 4; Signed = $false }
     )
 
-    # dmFormName: WCHAR[32] at offset 108
-    $formNameBytes = $dm[108..171]
+    # dmFormName: WCHAR[32] at offset 102
+    $formNameBytes = $dm[102..165]
     $formName = [System.Text.Encoding]::Unicode.GetString($formNameBytes).TrimEnd("`0")
     Write-Host ("  {0,-20} = {1}" -f "dmFormName", $formName)
 
@@ -97,21 +74,28 @@ try {
         if ($f.Name -eq "dmPrintQuality" -or $f.Name -eq "dmYResolution") {
             $extra = " DPI"
         }
+        if ($f.Name -eq "dmPaperLength" -or $f.Name -eq "dmPaperWidth") {
+            $mmVal = $val / 10.0
+            $inVal = $val / 254.0
+            $extra = " (${mmVal}mm / $([Math]::Round($inVal, 2))in)"
+        }
+        if ($f.Name -eq "dmFields") {
+            $extra = " (0x$($val.ToString('X8')))"
+        }
 
         Write-Host ("  {0,-20} = {1}{2}" -f $f.Name, $val, $extra)
     }
 
     Write-Host ""
 
-    # Dump driver-private data (after dmSize + standard area)
-    $dmSize = [BitConverter]::ToUInt16($dm, 72)
-    $dmDriverExtra = [BitConverter]::ToUInt16($dm, 74)
+    # Dump driver-private data
+    $dmSize = [BitConverter]::ToUInt16($dm, 68)
+    $dmDriverExtra = [BitConverter]::ToUInt16($dm, 70)
     if ($dmDriverExtra -gt 0) {
         $privateStart = $dmSize
         $privateEnd = [Math]::Min($privateStart + $dmDriverExtra, $dm.Length)
         Write-Host "Driver-private data ($dmDriverExtra bytes, offset $privateStart):"
         $hex = ($dm[$privateStart..($privateEnd-1)] | ForEach-Object { $_.ToString("X2") }) -join " "
-        # Print in rows of 32 bytes
         for ($i = 0; $i -lt $hex.Length; $i += 96) {
             $end = [Math]::Min($i + 96, $hex.Length)
             Write-Host ("  " + $hex.Substring($i, $end - $i))
