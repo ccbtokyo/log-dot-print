@@ -9,6 +9,7 @@ import type { ConnectionState } from "../services/ws-client.js";
 export interface StatusBarCallbacks {
   onPrinterChange?: (printerName: string | null) => void;
   onPaperSizeChange?: (paperSize: string | null) => void;
+  onSimulateChange?: (simulate: boolean) => void;
 }
 
 const getConnectionIcon = (state: ConnectionState): string => {
@@ -41,7 +42,7 @@ export const renderStatusBar = (
   state: AppState,
   callbacks?: StatusBarCallbacks,
 ) => {
-  const { queue, connection, printerSettings, paperSettings } = state;
+  const { queue, connection, printerSettings, paperSettings, simulateSettings } = state;
 
   const handlePrinterChange = (event: Event) => {
     const select = event.target as HTMLSelectElement;
@@ -53,6 +54,11 @@ export const renderStatusBar = (
     const select = event.target as HTMLSelectElement;
     const value = select.value;
     callbacks?.onPaperSizeChange?.(value === "" ? null : value);
+  };
+
+  const handleSimulateChange = (event: Event) => {
+    const checkbox = event.target as HTMLInputElement;
+    callbacks?.onSimulateChange?.(checkbox.checked);
   };
 
   const template = html`
@@ -137,6 +143,25 @@ export const renderStatusBar = (
         </select>
         ${
           paperSettings.isLoading
+            ? html`
+                <span class="loading-indicator">⏳</span>
+              `
+            : ""
+        }
+      </div>
+      <div class="status-item simulate-toggle">
+        <label class="simulate-label">
+          <input
+            type="checkbox"
+            class="simulate-checkbox"
+            .checked=${simulateSettings.simulate}
+            @change=${handleSimulateChange}
+            ?disabled=${simulateSettings.isLoading}
+          />
+          <span>Simulate</span>
+        </label>
+        ${
+          simulateSettings.isLoading
             ? html`
                 <span class="loading-indicator">⏳</span>
               `

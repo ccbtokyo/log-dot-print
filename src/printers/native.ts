@@ -232,6 +232,8 @@ export interface NativePrinterOptions {
   getPaperSizeFromStorage?: () => Promise<string | null>;
   /** Callback to get the current paper kind (DEVMODE dmPaperSize) from storage */
   getPaperKindFromStorage?: () => Promise<number | null>;
+  /** Callback to get simulate mode from storage (overrides config when true) */
+  getSimulateFromStorage?: () => Promise<boolean>;
 }
 
 const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
@@ -241,7 +243,11 @@ const MAX_PRINT_BYTES = 10 * 1024 * 1024; // 10MB
  */
 type NativePrinterInternalOptions = Omit<
   NativePrinterOptions,
-  "persistDir" | "getPrinterNameFromStorage" | "getPaperSizeFromStorage" | "getPaperKindFromStorage"
+  | "persistDir"
+  | "getPrinterNameFromStorage"
+  | "getPaperSizeFromStorage"
+  | "getPaperKindFromStorage"
+  | "getSimulateFromStorage"
 > & {
   persistDir: string;
 };
@@ -264,6 +270,7 @@ export class NativePrinter extends BasePrinter {
   private getPrinterNameFromStorage?: () => Promise<string | null>;
   private getPaperSizeFromStorage?: () => Promise<string | null>;
   private getPaperKindFromStorage?: () => Promise<number | null>;
+  private getSimulateFromStorage?: () => Promise<boolean>;
 
   private isWindowsPlatform(): boolean {
     return process.platform === "win32";
@@ -325,6 +332,7 @@ export class NativePrinter extends BasePrinter {
     this.getPrinterNameFromStorage = options.getPrinterNameFromStorage;
     this.getPaperSizeFromStorage = options.getPaperSizeFromStorage;
     this.getPaperKindFromStorage = options.getPaperKindFromStorage;
+    this.getSimulateFromStorage = options.getSimulateFromStorage;
   }
 
   protected async connect(): Promise<void> {
@@ -599,9 +607,13 @@ export class NativePrinter extends BasePrinter {
         ? { ...this.options, paperKind: resolvedPaperKind }
         : this.options;
 
-      // Check simulate mode: env var overrides config
+      // Check simulate mode: env var > storage > config
+      // Short-circuit: skip async storage read when env var already enables simulate
+      const envSimulate = process.env.PRINTERS_JS_SIMULATE === "true";
       const isSimulate =
-        process.env.PRINTERS_JS_SIMULATE === "true" || this.options.simulate === true;
+        envSimulate ||
+        (this.getSimulateFromStorage ? await this.getSimulateFromStorage() : false) ||
+        this.options.simulate === true;
 
       // Persist print file FIRST (always enabled with default directory).
       // On Windows, printing from TEMP can fail due to antivirus file locks

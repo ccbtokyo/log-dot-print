@@ -370,6 +370,53 @@ export class QueueController {
       }
     });
 
+    // GET /api/settings/simulate - Get simulate mode setting
+    this.app.get("/api/settings/simulate", async (c) => {
+      try {
+        const sqliteStorage = this.storage as SqliteStorage | undefined;
+        const raw = sqliteStorage?.getSetting
+          ? await sqliteStorage.getSetting("printer.simulate")
+          : null;
+        const simulate = raw === "true";
+        return c.json({ simulate });
+      } catch (error) {
+        console.error("[QueueController] Failed to get simulate setting:", error);
+        return c.json({ error: "Failed to get simulate setting", details: String(error) }, 500);
+      }
+    });
+
+    // PUT /api/settings/simulate - Update simulate mode setting
+    this.app.put("/api/settings/simulate", async (c) => {
+      const sqliteStorage = this.storage as SqliteStorage | undefined;
+      if (!sqliteStorage?.setSetting) {
+        return c.json({ error: "Storage not configured for settings" }, 503);
+      }
+
+      let body: { simulate?: boolean };
+      try {
+        body = await c.req.json();
+      } catch {
+        return c.json({ error: "Invalid JSON body" }, 400);
+      }
+
+      if (typeof body !== "object" || body === null || !("simulate" in body)) {
+        return c.json({ error: "Missing simulate field" }, 400);
+      }
+
+      if (typeof body.simulate !== "boolean") {
+        return c.json({ error: "simulate must be a boolean" }, 400);
+      }
+
+      try {
+        await sqliteStorage.setSetting("printer.simulate", String(body.simulate));
+        console.log(`[QueueController] Simulate setting saved: ${body.simulate}`);
+        return c.json({ success: true, simulate: body.simulate });
+      } catch (error) {
+        console.error("[QueueController] Failed to save simulate setting:", error);
+        return c.json({ error: "Failed to save simulate setting", details: String(error) }, 500);
+      }
+    });
+
     // PUT /api/settings/paper - Update paper setting
     this.app.put("/api/settings/paper", async (c) => {
       const sqliteStorage = this.storage as SqliteStorage | undefined;

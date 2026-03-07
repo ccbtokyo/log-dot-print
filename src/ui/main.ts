@@ -168,6 +168,19 @@ const statusBarCallbacks: StatusBarCallbacks = {
       console.error("[App] Failed to change paper size:", error);
     }
   },
+  onSimulateChange: async (simulate: boolean) => {
+    store.setSimulateLoading(true);
+    try {
+      await apiClient.updateSimulateSettings(simulate);
+      store.setSimulate(simulate);
+      store.setSimulateLoading(false);
+      console.log("[App] Simulate mode changed to:", simulate);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update simulate mode";
+      store.setSimulateError(message);
+      console.error("[App] Failed to change simulate mode:", error);
+    }
+  },
 };
 
 // Load printer settings
@@ -238,6 +251,24 @@ async function loadPaperSettings(): Promise<void> {
     const message = error instanceof Error ? error.message : "Failed to load paper settings";
     store.setPaperError(message);
     console.error("[App] Failed to load paper settings:", error);
+  }
+}
+
+// Load simulate settings
+async function loadSimulateSettings(): Promise<void> {
+  store.setSimulateLoading(true);
+  try {
+    const data = await apiClient.getSimulateSettings();
+    store.setSimulateSettings({
+      simulate: data.simulate,
+      isLoading: false,
+      error: null,
+    });
+    console.log("[App] Simulate settings loaded:", data);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to load simulate settings";
+    store.setSimulateError(message);
+    console.error("[App] Failed to load simulate settings:", error);
   }
 }
 
@@ -396,9 +427,10 @@ function init(): void {
   // Connect WebSocket
   wsClient.connect();
 
-  // Load printer and paper settings on init
+  // Load printer, paper, and simulate settings on init
   loadPrinterSettings();
   loadPaperSettings();
+  loadSimulateSettings();
 
   console.log("[App] Initialized");
 }

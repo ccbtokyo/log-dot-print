@@ -187,4 +187,23 @@ export class ApiClient {
       throw new Error(`Failed to update paper settings: ${response.status}`);
     }
   }
+
+  async getSimulateSettings(): Promise<{ simulate: boolean }> {
+    const response = await fetch(`${this.baseUrl}/api/settings/simulate`);
+    if (!response.ok) {
+      throw new Error(`Failed to get simulate settings: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async updateSimulateSettings(simulate: boolean): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/settings/simulate`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ simulate }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to update simulate settings: ${response.status}`);
+    }
+  }
 }

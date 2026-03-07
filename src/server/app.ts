@@ -265,6 +265,12 @@ export class LogPrintApp {
         const parsed = parseInt(raw, 10);
         return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
       },
+      getSimulateFromStorage: async () => {
+        const sqliteStorage = this.queueStorage as SqliteStorage | undefined;
+        if (!sqliteStorage?.getSetting) return false;
+        const raw = await sqliteStorage.getSetting("printer.simulate");
+        return raw === "true";
+      },
     };
     this.printer = printerRegistry.create(this.config.printer.type, printerOptions);
     console.log("[App] Printer created, initializing...");

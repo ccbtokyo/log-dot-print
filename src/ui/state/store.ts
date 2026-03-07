@@ -10,6 +10,7 @@ import type {
   PaginationInfo,
   PrinterSettingsState,
   PaperSettingsState,
+  SimulateSettingsState,
 } from "../types.js";
 import type { ConnectionState } from "../services/ws-client.js";
 
@@ -22,6 +23,7 @@ export interface AppState {
   history: HistoryState;
   printerSettings: PrinterSettingsState;
   paperSettings: PaperSettingsState;
+  simulateSettings: SimulateSettingsState;
 }
 
 export type StateListener = (state: AppState) => void;
@@ -57,6 +59,12 @@ const initialPaperSettings: PaperSettingsState = {
   error: null,
 };
 
+const initialSimulateSettings: SimulateSettingsState = {
+  simulate: false,
+  isLoading: false,
+  error: null,
+};
+
 export class Store {
   private state: AppState = {
     queue: initialQueueState,
@@ -67,6 +75,7 @@ export class Store {
     history: initialHistoryState,
     printerSettings: initialPrinterSettings,
     paperSettings: initialPaperSettings,
+    simulateSettings: initialSimulateSettings,
   };
 
   private listeners = new Set<StateListener>();
@@ -208,6 +217,38 @@ export class Store {
         ...this.state.paperSettings,
         currentPaperSize: paperSize,
         isDefault: paperSize === null,
+      },
+    };
+    this.notify();
+  }
+
+  setSimulateSettings(simulateSettings: SimulateSettingsState): void {
+    this.state = { ...this.state, simulateSettings };
+    this.notify();
+  }
+
+  setSimulateLoading(isLoading: boolean): void {
+    this.state = {
+      ...this.state,
+      simulateSettings: { ...this.state.simulateSettings, isLoading },
+    };
+    this.notify();
+  }
+
+  setSimulateError(error: string | null): void {
+    this.state = {
+      ...this.state,
+      simulateSettings: { ...this.state.simulateSettings, error, isLoading: false },
+    };
+    this.notify();
+  }
+
+  setSimulate(simulate: boolean): void {
+    this.state = {
+      ...this.state,
+      simulateSettings: {
+        ...this.state.simulateSettings,
+        simulate,
       },
     };
     this.notify();

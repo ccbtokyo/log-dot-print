@@ -137,3 +137,12 @@ export interface PaperSettingsState {
   isLoading: boolean;
   error: string | null;
 }
+
+/**
+ * Simulate mode settings state
+ */
+export interface SimulateSettingsState {
+  simulate: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
